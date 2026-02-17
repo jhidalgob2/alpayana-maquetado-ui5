@@ -1,0 +1,388 @@
+<mvc:View
+    controllerName="com.nttdata.cuentas.controller.Worklist"
+    xmlns="sap.m"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:semantic="sap.f.semantic"
+    xmlns:fb="sap.ui.comp.filterbar"
+    class="sapUiSizeCompact"
+>
+    <semantic:SemanticPage
+        id="page"
+        headerPinnable="false"
+        toggleHeaderOnTitleClick="false"
+        fitContent="false"
+		showFooter="true"
+    >
+        <semantic:titleHeading>
+            <Title text="{i18n>worklistTitle}" />
+        </semantic:titleHeading>
+        <semantic:content>
+            <IconTabBar
+                id="iconTabBar"
+                select=".onQuickFilter"
+                expandable="false"
+            >
+                <items>
+                    <IconTabFilter
+                        key="inicial"
+                        showAll="true"
+                        text="Inicial"
+                    />
+                    <IconTabSeparator />
+                    <IconTabFilter
+                        key="facturadoSAP"
+                        icon="sap-icon://accept"
+                        iconColor="Positive"
+                        text="Facturado"
+                    />
+                    <IconTabFilter
+                        key="enviadoSUNAT"
+                        icon="sap-icon://outbox"
+                        iconColor="Critical"
+                        text="Enviado"
+                    />
+                    <IconTabFilter
+                        key="registradoMIRO"
+                        icon="sap-icon://complete"
+                        iconColor="Default"
+                        text="Registrado"
+                    />
+                </items>
+                <content>
+                    <Table
+                        id="table"
+                        busyIndicatorDelay="{worklistView>/tableBusyDelay}"
+                        growing="true"
+                        growingScrollToLoad="true"
+                        noDataText="{worklistView>/tableNoDataText}"
+                        updateFinished=".onUpdateFinished"
+                        width="100%"
+                        items="{ path: 'pedidos>/' }"
+                        mode="{worklistView>/tableSelectionMode}"
+                        selectionChange=".onSelectionChange"
+                        autoPopinMode="true"
+                        popinLayout="GridSmall"
+                        class="sapUiSizeCompact"
+                    >
+                        <headerToolbar>
+                            <Toolbar>
+                                <Title
+                                    id="tableHeader"
+                                    text="{worklistView>/worklistTableTitle}"
+                                />
+                                <ToolbarSpacer />
+                                <Button
+                                    id="processSelectedBtn"
+                                    text="Procesar Selección"
+                                    icon="sap-icon://process"
+                                    enabled="{= ${worklistView>/selectedRowsCount} > 0 }"
+                                    press=".onProcessSelected"
+                                    tooltip="Procesar filas seleccionadas"
+                                    visible="{worklistView>/processBtnVisible}"
+                                />
+                                <Button
+                                    id="exportBtn"
+                                    text="Exportar"
+                                    icon="sap-icon://excel-attachment"
+                                    press=".onExport"
+                                    tooltip="Exportar datos a Excel"
+                                />
+                            </Toolbar>
+                        </headerToolbar>
+                        <columns>
+                            <Column
+                                id="colPedido"
+                                width="6rem"
+                                importance="High"
+                            >
+                                <Text text="Pedido" />
+                            </Column>
+                            <Column
+                                id="colMaterial"
+                                width="15rem"
+                                importance="High"
+                            >
+                                <Text text="Material" />
+                            </Column>
+                            <Column
+                                id="colTipoRetencion"
+                                width="5rem"
+                                importance="Low"
+                            >
+                                <Text text="Tipo Retención" />
+                            </Column>
+                            <Column
+                                id="colEntrega"
+                                width="7rem"
+                                importance="Low"
+                            >
+                                <Text text="Entrega" />
+                            </Column>
+                            <Column
+                                id="colCentroSum"
+                                width="6rem"
+                                importance="Low"
+                            >
+                                <Text text="Centro Sum" />
+                            </Column>
+                            <Column
+                                id="colCentroRecep"
+                                width="6rem"
+                                importance="Low"
+                            >
+                                <Text text="Centro Recep" />
+                            </Column>
+                            <Column
+                                id="colCantSal"
+                                width="6rem"
+                                importance="Medium"
+                            >
+                                <Text text="Cant Sal" />
+                            </Column>
+                            <Column
+                                id="colCantEnt"
+                                width="6rem"
+                                importance="Medium"
+                            >
+                                <Text text="Cant Ent" />
+                            </Column>
+                            <Column
+                                id="colDiffCantidad"
+                                width="6rem"
+                                importance="Medium"
+                            >
+                                <Text text="Dif. Cantidad" />
+                            </Column>
+                            <Column
+                                id="colPrecioSal"
+                                width="7rem"
+                                importance="Medium"
+                            >
+                                <Text text="Precio Sal" />
+                            </Column>
+                            <Column
+                                id="colPrecioEnt"
+                                width="7rem"
+                                importance="Medium"
+                            >
+                                <Text text="Precio Ent" />
+                            </Column>
+                            <Column
+                                id="colDiffPrecio"
+                                width="6rem"
+                                importance="Medium"
+                            >
+                                <Text text="Dif. Precio" />
+                            </Column>
+                            <Column
+                                id="colStatusFacturacion"
+                                width="7rem"
+                                importance="Medium"
+                                visible="{worklistView>/colStatusFacturacionVisible}"
+                            >
+                                <Text text="Status Facturación" />
+                            </Column>
+                            <Column
+                                id="colFactura"
+                                width="8rem"
+                                importance="High"
+                                visible="{worklistView>/colFacturaVisible}"
+                            >
+                                <Text text="Factura" />
+                            </Column>
+                            <Column
+                                id="colStatusEnvioSunat"
+                                width="7rem"
+                                importance="Low"
+                                visible="{worklistView>/colStatusEnvioSunatVisible}"
+                            >
+                                <Text text="Status Envio Sunat" />
+                            </Column>
+                            <Column
+                                id="colReferencia"
+                                width="8rem"
+                                importance="Low"
+                                visible="{worklistView>/colReferenciaVisible}"
+                            >
+                                <Text text="Referencia" />
+                            </Column>
+                            <Column
+                                id="colStatusMIRO"
+                                width="7rem"
+                                importance="Low"
+                                visible="{worklistView>/colStatusMIROVisible}"
+                            >
+                                <Text text="Status MIRO" />
+                            </Column>
+                            <Column
+                                id="colDocMIRO"
+                                width="7rem"
+                                importance="Low"
+                                visible="{worklistView>/colDocMIROVisible}"
+                            >
+                                <Text text="Doc. MIRO" />
+                            </Column>
+                            <Column
+                                id="colMensajeUltimoEvento"
+                                width="15rem"
+                                importance="Low"
+                            >
+                                <Text text="Mensaje del Último Evento" />
+                            </Column>
+                        </columns>
+                        <items>
+                            <ColumnListItem
+                                type="Inactive"
+                                press=".onPress"
+                                highlight="{= ${pedidos>_mismatch} ? 'Error' : 'None' }"
+                            >
+                                <cells>
+                                    <ObjectIdentifier
+                                        title="{pedidos>pedido}"
+                                        text="{pedidos>pos}"
+                                    />
+                                    <ObjectIdentifier
+                                        title="{pedidos>material}"
+                                        text="{pedidos>descripcion}"
+                                    />
+                                    <Text text="{pedidos>tipoRetencion}" />
+                                    <Text text="{pedidos>entrega}" />
+                                    <Text text="{pedidos>centroSum}" />
+                                    <Text text="{pedidos>centroRecep}" />
+                                    <ObjectNumber
+                                        number="{pedidos>cantSal}"
+                                        unit="PC"
+                                    />
+                                    <ObjectNumber
+                                        number="{pedidos>cantEnt}"
+                                        unit="PC"
+                                    />
+                                    <ObjectNumber
+                                        number="{= ${pedidos>cantSal} - ${pedidos>cantEnt} }"
+                                        unit="PC"
+                                    />
+                                    <ObjectNumber
+                                        number="{pedidos>precioSal}"
+                                        unit="S/"
+                                    />
+                                    <ObjectNumber
+                                        number="{pedidos>precioEnt}"
+                                        unit="S/"
+                                    />
+                                    <ObjectNumber
+                                        number="{= ${pedidos>precioSal} - ${pedidos>precioEnt} }"
+                                        unit="S/"
+                                    />
+                                    <Text text="{pedidos>statusFacturacion}" />
+                                    <Text text="{pedidos>factura}" />
+                                    <Text text="{pedidos>statusEnvioSunat}" />
+                                    <Text text="{pedidos>referencia}" />
+                                    <Text text="{pedidos>statusMiro}" />
+                                    <ObjectNumber number="{pedidos>docMiro}" />
+                                    <Text
+                                        text="{pedidos>mensajeUltimoEvento}"
+                                    />
+                                </cells>
+                            </ColumnListItem>
+                        </items>
+                    </Table>
+                </content>
+            </IconTabBar>
+        </semantic:content>
+
+        <semantic:headerContent>
+            <fb:FilterBar
+                id="filterBar"
+                showClearOnFB="true"
+                showRestoreOnFB="true"
+                search=".onFilterBarSearch"
+                reset=".onFilterBarReset"
+            >
+                <fb:filterGroupItems>
+                    <fb:FilterGroupItem
+                        groupName="_BASIC"
+                        name="CentroSum"
+                        label="Centro Vendedor"
+                        visibleInFilterBar="true"
+                    >
+                        <fb:control>
+                            <ComboBox
+                                id="selectCentroSum"
+                                width="10rem"
+                                items="{ path: 'worklistView>/centroSumOptions' }"
+                                selectedKey="{worklistView>/selectedCentroSum}"
+                                showClearIcon="true"
+                            >
+                                <core:Item
+                                    key="{worklistView>key}"
+                                    text="{worklistView>text}"
+                                    xmlns:core="sap.ui.core"
+                                />
+                            </ComboBox>
+                        </fb:control>
+                    </fb:FilterGroupItem>
+                    <fb:FilterGroupItem
+                        groupName="_BASIC"
+                        name="CentroRecep"
+                        label="Centro Comprador"
+                        visibleInFilterBar="true"
+                    >
+                        <fb:control>
+                            <ComboBox
+                                id="selectCentroRecep"
+                                width="10rem"
+                                items="{ path: 'worklistView>/centroRecepOptions' }"
+                                selectedKey="{worklistView>/selectedCentroRecep}"
+                                showClearIcon="true"
+                            >
+                                <core:Item
+                                    key="{worklistView>key}"
+                                    text="{worklistView>text}"
+                                    xmlns:core="sap.ui.core"
+                                />
+                            </ComboBox>
+                        </fb:control>
+                    </fb:FilterGroupItem>
+                    <fb:FilterGroupItem
+                        groupName="_BASIC"
+                        name="Entrega"
+                        label="Fecha de selección"
+                        visibleInFilterBar="true"
+                    >
+                        <fb:control>
+                            <DateRangeSelection
+                                id="dateRangeEntrega"
+                                width="16rem"
+                            />
+                        </fb:control>
+                    </fb:FilterGroupItem>
+                    <fb:FilterGroupItem
+                        groupName="_BASIC"
+                        name="Material"
+                        label="Grupo de material"
+                        visibleInFilterBar="true"
+                    >
+                        <fb:control>
+                            <ComboBox
+                                id="selectMaterial"
+                                width="12rem"
+                                items="{ path: 'worklistView>/materialOptions' }"
+                                selectedKey="{worklistView>/selectedMaterial}"
+                                showClearIcon="true"
+                            >
+                                <core:Item
+                                    key="{worklistView>key}"
+                                    text="{worklistView>text}"
+                                    xmlns:core="sap.ui.core"
+                                />
+                            </ComboBox>
+                        </fb:control>
+                    </fb:FilterGroupItem>
+                </fb:filterGroupItems>
+            </fb:FilterBar>
+        </semantic:headerContent>
+		<semantic:messagesIndicator>
+			<semantic:MessagesIndicator press="onMessagesButtonPress"/>
+		</semantic:messagesIndicator>
+    </semantic:SemanticPage>
+</mvc:View>
