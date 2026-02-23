@@ -36,6 +36,36 @@ sap.ui.define([
 			} else {
 				return ValueState.Success;
 			}
+		},
+
+		/**
+		 * Estado de tolerancia para icono/estado
+		 * - 0 o vacío  -> Success (🟢)
+		 * - <= 5       -> Warning (🟡)
+		 * - > 5        -> Error (🔴)
+		 */
+		estadoTolState: function (v) {
+			if (v == null || v === "") {
+				return ValueState.Success;
+			}
+			var n = Number(v);
+			if (isNaN(n) || n === 0) {
+				return ValueState.Success;
+			}
+			n = Math.abs(n);
+			return (n <= 5) ? ValueState.Warning : ValueState.Error;
+		},
+
+		estadoTolText: function (v) {
+			if (v == null || v === "") {
+				return "Sin diferencia";
+			}
+			var n = Number(v);
+			if (isNaN(n) || n === 0) {
+				return "Sin diferencia";
+			}
+			n = Math.abs(n);
+			return (n <= 5) ? "Dentro de tolerancia" : "Fuera de tolerancia";
 		}
 
 	};

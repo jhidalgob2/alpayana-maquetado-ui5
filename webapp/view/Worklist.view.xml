@@ -104,6 +104,22 @@
 
                         <t:columns>
                             <t:Column
+                                id="colEstadoTol"
+                                width="12rem"
+                                sortProperty="estadoTol"
+                                filterProperty="estadoTol"
+                            >
+                                <Text text="Estado Tol" />
+                                <t:template>
+                                    <ObjectStatus
+                                        icon="sap-icon://circle-task"
+                                        state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}"
+                                        text="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolText'}"
+                                    />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
                                 id="colPedido"
                                 width="6rem"
                                 sortProperty="pedido"
@@ -165,7 +181,7 @@
                             >
                                 <Text text="Centro Vend" />
                                 <t:template>
-                                    <Text text="{pedidos>centroSum}" />
+                                    <ObjectIdentifier title="{pedidos>centroSum}" text="{pedidos>centroSumDesc}" />
                                 </t:template>
                             </t:Column>
 
@@ -177,7 +193,7 @@
                             >
                                 <Text text="Centro Comp" />
                                 <t:template>
-                                    <Text text="{pedidos>centroRecep}" />
+                                    <ObjectIdentifier title="{pedidos>centroRecep}" text="{pedidos>centroRecepDesc}" />
                                 </t:template>
                             </t:Column>
 
@@ -190,7 +206,7 @@
                             >
                                 <Text text="Cant Sal" />
                                 <t:template>
-                                    <ObjectNumber number="{pedidos>cantSal}" unit="PC" />
+                                    <ObjectNumber number="{pedidos>cantSal}" />
                                 </t:template>
                             </t:Column>
 
@@ -203,7 +219,7 @@
                             >
                                 <Text text="Cant Ent" />
                                 <t:template>
-                                    <ObjectNumber number="{pedidos>cantEnt}" unit="PC" />
+                                    <ObjectNumber number="{pedidos>cantEnt}" />
                                 </t:template>
                             </t:Column>
 
@@ -216,7 +232,7 @@
                             >
                                 <Text text="Dif. Cantidad" />
                                 <t:template>
-                                    <ObjectNumber number="{pedidos>difCantidadCalc}" unit="PC" />
+                                    <ObjectNumber number="{pedidos>difCantidadCalc}" />
                                 </t:template>
                             </t:Column>
 
@@ -229,7 +245,7 @@
                             >
                                 <Text text="Importe Sal" />
                                 <t:template>
-                                    <ObjectNumber number="{pedidos>precioSal}" unit="S/" />
+                                    <ObjectNumber number="{pedidos>precioSal}" />
                                 </t:template>
                             </t:Column>
 
@@ -242,12 +258,13 @@
                             >
                                 <Text text="Importe Ent" />
                                 <t:template>
-                                    <ObjectNumber number="{pedidos>precioEnt}" unit="S/" />
+                                    <ObjectNumber number="{pedidos>precioEnt}" />
                                 </t:template>
                             </t:Column>
 
                             <t:Column
                                 id="colDiffPrecio"
+                                visible="false"
                                 width="7rem"
                                 hAlign="End"
                                 sortProperty="difImporteCalc"
@@ -255,7 +272,7 @@
                             >
                                 <Text text="Dif. Importe" />
                                 <t:template>
-                                    <ObjectNumber number="{pedidos>difImporteCalc}" unit="S/" />
+                                    <ObjectNumber number="{pedidos>difImporteCalc}" />
                                 </t:template>
                             </t:Column>
 
@@ -417,6 +434,8 @@
                             <DateRangeSelection
                                 id="dateRangeEntrega"
                                 width="16rem"
+                                displayFormat="dd/MM/yyyy"
+                                valueFormat="yyyy-MM-dd"
                             />
                         </fb:control>
                     </fb:FilterGroupItem>

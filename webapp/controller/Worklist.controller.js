@@ -178,6 +178,9 @@ success: function (oData) {
 
     oViewModel.setProperty("/centroRecepOptions", aCentroCompOptions);
     oViewModel.setProperty("/centroSumOptions", aCentroVendOptions);
+
+    // Enrich current table rows (if already loaded) with center descriptions
+    this._enrichCentroDescriptions();
 }.bind(this),
 
                 error: function (oError) {
@@ -240,6 +243,50 @@ success: function (oData) {
             return "";
         },
 
+        /**
+         * Returns description text for a given key from a [{key,text}] options array.
+         * If option.text is 'KEY - DESC', we return only 'DESC'.
+         */
+        _getOptionDescByKey: function (aOptions, sKey) {
+            if (!sKey) return "";
+            if (!Array.isArray(aOptions)) return "";
+
+            var oFound = aOptions.find(function (o) {
+                return o && String(o.key) === String(sKey);
+            });
+
+            if (!oFound || !oFound.text) return "";
+
+            var sText = String(oFound.text);
+            var sPrefix = String(sKey) + " - ";
+            if (sText.indexOf(sPrefix) === 0) {
+                return sText.slice(sPrefix.length);
+            }
+            return (sText === String(sKey)) ? "" : sText;
+        },
+
+        _enrichCentroDescriptions: function () {
+            var oPedidosModel = this.getModel("pedidos");
+            var aData = (oPedidosModel && oPedidosModel.getData) ? oPedidosModel.getData() : [];
+            if (!Array.isArray(aData) || aData.length === 0) return;
+
+            var oViewModel = this.getModel("worklistView");
+            var aCentroVendOptions = (oViewModel && oViewModel.getProperty) ? (oViewModel.getProperty("/centroSumOptions") || []) : [];
+            var aCentroCompOptions = (oViewModel && oViewModel.getProperty) ? (oViewModel.getProperty("/centroRecepOptions") || []) : [];
+
+            aData.forEach(function (row) {
+                if (!row) return;
+                row.centroSumDesc = this._getOptionDescByKey(aCentroVendOptions, row.centroSum);
+                row.centroRecepDesc = this._getOptionDescByKey(aCentroCompOptions, row.centroRecep);
+            }.bind(this));
+
+            // Trigger UI refresh
+            if (oPedidosModel && oPedidosModel.refresh) {
+                oPedidosModel.refresh(true);
+            }
+        },
+
+
         _loadDocumentoMonitor: function (aFilters) {
             var oODataModel = this._getArticuloModel();
             var oTable = this.byId("table");
@@ -255,6 +302,9 @@ success: function (oData) {
                     }.bind(this));
 
                     this.getModel("pedidos").setData(aMapped);
+
+                    // Add center descriptions based on loaded filter options
+                    this._enrichCentroDescriptions();
 
                     // Reset selection count
                     this.getModel("worklistView").setProperty("/selectedRowsCount", 0);
@@ -278,6 +328,15 @@ success: function (oData) {
             var nDifCant = (o.DifCantidad != null) ? this._toNumber(o.DifCantidad) : (nCantSal - nCantEnt);
             var nDifImp = nImpSal - nImpEnt;
 
+
+            // Center descriptions based on filter options (key -> name)
+            var oViewModel = this.getModel("worklistView");
+            var aCentroVendOptions = oViewModel ? (oViewModel.getProperty("/centroSumOptions") || []) : [];
+            var aCentroCompOptions = oViewModel ? (oViewModel.getProperty("/centroRecepOptions") || []) : [];
+            var sCentroVend = o.CentroVend || "";
+            var sCentroComp = o.CentroComp || "";
+            var sCentroVendDesc = this._getOptionDescByKey(aCentroVendOptions, sCentroVend);
+            var sCentroCompDesc = this._getOptionDescByKey(aCentroCompOptions, sCentroComp);
             // Flag mismatch to keep existing highlight/styling
             var bMismatch = (nDifCant !== 0) || (nDifImp !== 0);
 
@@ -289,8 +348,10 @@ success: function (oData) {
                 descripcion: o.Maktx || "",
                 tipoRetencion: o.TipoRet || "",
                 entrega: this._formatODataDate(o.Entrega),
-                centroSum: o.CentroVend || "",
-                centroRecep: o.CentroComp || "",
+                centroSum: sCentroVend,
+                centroSumDesc: sCentroVendDesc,
+                centroRecep: sCentroComp,
+                centroRecepDesc: sCentroCompDesc,
                 cantSal: nCantSal,
                 cantEnt: nCantEnt,
                 precioSal: nImpSal,
@@ -306,7 +367,7 @@ success: function (oData) {
                 // Extra fields from the entity (not necessarily visible yet)
                 docSal643: (o.DocSal643 == null) ? "" : String(o.DocSal643),
                 docEnt101: (o.DocEnt101 == null) ? "" : String(o.DocEnt101),
-                estadoTol: o.EstadoTol || "",
+                estadoTol: this._toNumber(o.EstadoTol),
                 estadoReg: o.EstadoReg || "",
                 budat: this._formatODataDate(o.Budat),
                 extwg: o.Extwg || "",
