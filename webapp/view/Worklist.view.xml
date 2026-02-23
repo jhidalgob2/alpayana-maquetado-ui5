@@ -8,6 +8,7 @@
 >
     <semantic:SemanticPage
         id="page"
+        class="appRoot"
         headerPinnable="false"
         toggleHeaderOnTitleClick="false"
         fitContent="false"
