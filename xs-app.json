@@ -9,6 +9,13 @@
       "authenticationType": "xsuaa",
       "csrfProtection": false
     },
+{
+  "source": "^/sap/opu/odata/SAP/(.*)$",
+  "target": "/sap/opu/odata/SAP/$1",
+  "destination": "bx_neo_s4h",
+  "authenticationType": "xsuaa",
+  "csrfProtection": false
+},
     {
       "source": "^/resources/(.*)$",
       "target": "/resources/$1",

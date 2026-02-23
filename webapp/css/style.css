@@ -1,1 +1,41 @@
-/* Enter your custom styles here */
+/* Scope a tu app (ya tienes class="appRoot" en el SemanticPage) */
+
+/* 1) Quita el azul del Title/Header del DynamicPage */
+.appRoot .sapFDynamicPageTitleWrapper,
+.appRoot .sapFDynamicPageTitle,
+.appRoot .sapFDynamicPageHeader,
+.appRoot .sapFDynamicPageHeaderWithContent {
+  background: #fff !important;
+  background-color: #fff !important;
+  box-shadow: none !important;
+  border-bottom: none !important;
+}
+
+/* 2) Quita el “plomito/azul” que se ve entre tabs y tabla (content area) 
+.appRoot .sapFDynamicPageContent,
+.appRoot .sapFDynamicPageContentFitContainer,
+.appRoot .sapFDynamicPageContentFitContainerFooterVisible.sapFDynamicPageContentFitContainer {
+  background: #fff !important;
+  background-color: #fff !important;
+}*/
+
+/* 3) IconTabBar: header y contenedor */
+.appRoot .sapMITH,
+.appRoot .sapMITHWrapper,
+.appRoot .sapMITHContent,
+.appRoot .sapMITB,
+.appRoot .sapMITBHead,
+.appRoot .sapMITBContent,
+.appRoot .sapMITBContainerContent {
+  background: #fff !important;
+  background-color: #fff !important;
+}
+
+/* 4) Opcional: si el cuerpo aún “transparenta” el shell */
+.appRoot,
+.appRoot .sapFSemanticPage,
+.appRoot .sapFSemanticPageContent,
+.appRoot .sapFSemanticPageMainContent {
+  background: #fff !important;
+  background-color: #fff !important;
+}
