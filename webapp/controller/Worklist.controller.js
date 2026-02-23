@@ -71,7 +71,7 @@ sap.ui.define([
 
                 // Table / toolbar state
                 selectedRowsCount: 0,
-                tableSelectionMode: "MultiSelect",
+                tableSelectionMode: "MultiToggle",
                 processBtnVisible: true
             });
             this.setModel(oViewModel, "worklistView");
@@ -88,7 +88,7 @@ sap.ui.define([
 
             // Keep original busy delay after first data update
             var iOriginalBusyDelay = oTable.getBusyIndicatorDelay();
-            oTable.attachEventOnce("updateFinished", function () {
+            oTable.attachEventOnce("rowsUpdated", function () {
                 oViewModel.setProperty("/tableBusyDelay", iOriginalBusyDelay);
             });
 
@@ -258,7 +258,7 @@ success: function (oData) {
 
                     // Reset selection count
                     this.getModel("worklistView").setProperty("/selectedRowsCount", 0);
-                    oTable.removeSelections(true);
+                    oTable.clearSelection();
 
                     oTable.setBusy(false);
                 }.bind(this),
@@ -454,7 +454,7 @@ success: function (oData) {
 
             // Clear table data
             this.getModel("pedidos").setData([]);
-            this.byId("table").removeSelections(true);
+            this.byId("table").clearSelection();
         },
 
         onExport: function () {
@@ -509,9 +509,11 @@ success: function (oData) {
             var sTitle,
                 oTable = oEvent.getSource(),
                 oViewModel = this.getModel("worklistView"),
-                iTotalItems = oEvent.getParameter("total");
+                oBinding = oTable.getBinding("rows"),
+                iTotalItems = oBinding ? oBinding.getLength() : 0;
 
-            if (iTotalItems && oTable.getBinding("items").isLengthFinal()) {
+            // For client-side JSONModel, getLength() is final.
+            if (iTotalItems) {
                 sTitle = this.getResourceBundle().getText("worklistTableTitleCount", [iTotalItems]);
                 oViewModel.setProperty("/countAll", iTotalItems);
             } else {
@@ -555,7 +557,7 @@ success: function (oData) {
 
         onRefresh: function () {
             var oTable = this.byId("table");
-            var oBinding = oTable.getBinding("items");
+            var oBinding = oTable.getBinding("rows");
             if (oBinding) {
                 oBinding.refresh();
             }
@@ -575,7 +577,7 @@ success: function (oData) {
             var oTable = this.byId("table"),
                 oViewModel = this.getModel("worklistView");
 
-            oTable.getBinding("items").filter(aTableSearchState, FilterType.Application);
+            oTable.getBinding("rows").filter(aTableSearchState, FilterType.Application);
 
             if (aTableSearchState.length !== 0) {
                 oViewModel.setProperty("/tableNoDataText", this.getResourceBundle().getText("worklistNoDataWithSearchText"));
@@ -585,7 +587,7 @@ success: function (oData) {
         },
 
         onQuickFilter: function (oEvent) {
-            var oBinding = this._oTable.getBinding("items"),
+            var oBinding = this._oTable.getBinding("rows"),
                 sKey = oEvent.getParameter("selectedKey"),
                 aFilters = [],
                 oViewModel = this.getModel("worklistView");
@@ -598,7 +600,7 @@ success: function (oData) {
                 oViewModel.setProperty("/colReferenciaVisible", false);
                 oViewModel.setProperty("/colStatusMIROVisible", false);
                 oViewModel.setProperty("/colDocMIROVisible", false);
-                oViewModel.setProperty("/tableSelectionMode", "MultiSelect");
+                oViewModel.setProperty("/tableSelectionMode", "MultiToggle");
                 oViewModel.setProperty("/processBtnVisible", true);
 
                 // "Inicial": still no factura
@@ -612,7 +614,7 @@ success: function (oData) {
                 oViewModel.setProperty("/colReferenciaVisible", false);
                 oViewModel.setProperty("/colStatusMIROVisible", false);
                 oViewModel.setProperty("/colDocMIROVisible", false);
-                oViewModel.setProperty("/tableSelectionMode", "MultiSelect");
+                oViewModel.setProperty("/tableSelectionMode", "MultiToggle");
                 oViewModel.setProperty("/processBtnVisible", true);
 
                 // Facturado SAP: con factura y sin referencia
@@ -627,7 +629,7 @@ success: function (oData) {
                 oViewModel.setProperty("/colReferenciaVisible", true);
                 oViewModel.setProperty("/colStatusMIROVisible", false);
                 oViewModel.setProperty("/colDocMIROVisible", false);
-                oViewModel.setProperty("/tableSelectionMode", "MultiSelect");
+                oViewModel.setProperty("/tableSelectionMode", "MultiToggle");
                 oViewModel.setProperty("/processBtnVisible", true);
 
                 // Enviado SUNAT: con referencia y aún sin Doc MIRO
@@ -656,15 +658,18 @@ success: function (oData) {
 
         onSelectionChange: function () {
             var oTable = this.byId("table");
-            var aSelectedContexts = oTable.getSelectedContexts();
-            var iCount = Array.isArray(aSelectedContexts) ? aSelectedContexts.length : 0;
+            var aSelectedIndices = (oTable && oTable.getSelectedIndices) ? oTable.getSelectedIndices() : [];
+            var iCount = Array.isArray(aSelectedIndices) ? aSelectedIndices.length : 0;
             this.getModel("worklistView").setProperty("/selectedRowsCount", iCount);
         },
 
         onProcessSelected: function () {
             var oTable = this.byId("table");
-            var aSelectedContexts = oTable.getSelectedContexts();
-            var aSelectedData = aSelectedContexts.map(function (ctx) { return ctx.getObject(); });
+            var aSelectedIndices = (oTable && oTable.getSelectedIndices) ? oTable.getSelectedIndices() : [];
+            var aSelectedData = (aSelectedIndices || []).map(function (i) {
+                var oCtx = oTable.getContextByIndex(i);
+                return oCtx ? oCtx.getObject() : null;
+            }).filter(Boolean);
 
             if (!aSelectedData.length) {
                 MessageToast.show("No se han seleccionado registros para procesar.");

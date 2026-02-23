@@ -4,6 +4,8 @@
     xmlns:mvc="sap.ui.core.mvc"
     xmlns:semantic="sap.f.semantic"
     xmlns:fb="sap.ui.comp.filterbar"
+    xmlns:t="sap.ui.table"
+    xmlns:core="sap.ui.core"
     class="sapUiSizeCompact"
 >
     <semantic:SemanticPage
@@ -12,11 +14,12 @@
         headerPinnable="false"
         toggleHeaderOnTitleClick="false"
         fitContent="false"
-		showFooter="true"
+        showFooter="true"
     >
         <semantic:titleHeading>
             <Title text="{i18n>worklistTitle}" />
         </semantic:titleHeading>
+
         <semantic:content>
             <IconTabBar
                 id="iconTabBar"
@@ -49,24 +52,24 @@
                         text="Registrado"
                     />
                 </items>
+
                 <content>
-                    <Table
+                    <t:Table
                         id="table"
                         busyIndicatorDelay="{worklistView>/tableBusyDelay}"
-                        growing="true"
-                        growingScrollToLoad="true"
-                        noDataText="{worklistView>/tableNoDataText}"
-                        updateFinished=".onUpdateFinished"
                         width="100%"
-                        items="{ path: 'pedidos>/' }"
-                        mode="{worklistView>/tableSelectionMode}"
-                        selectionChange=".onSelectionChange"
-                        autoPopinMode="true"
-                        popinLayout="GridSmall"
                         class="sapUiSizeCompact"
+                        visibleRowCountMode="Auto"
+                        minAutoRowCount="8"
+                        enableColumnReordering="true"
+                        showColumnVisibilityMenu="true"
+                        selectionMode="{worklistView>/tableSelectionMode}"
+                        rowSelectionChange=".onSelectionChange"
+                        rowsUpdated=".onUpdateFinished"
+                        rows="{ path: 'pedidos>/' }"
                     >
-                        <headerToolbar>
-                            <Toolbar>
+                        <t:toolbar>
+                            <OverflowToolbar>
                                 <Title
                                     id="tableHeader"
                                     text="{worklistView>/worklistTableTitle}"
@@ -88,205 +91,265 @@
                                     press=".onExport"
                                     tooltip="Exportar datos a Excel"
                                 />
-                            </Toolbar>
-                        </headerToolbar>
-                        <columns>
-                            <Column
+                            </OverflowToolbar>
+                        </t:toolbar>
+
+                        <t:noData>
+                            <Text text="{worklistView>/tableNoDataText}" />
+                        </t:noData>
+
+                        <t:rowSettingsTemplate>
+                            <t:RowSettings highlight="{= ${pedidos>_mismatch} ? 'Error' : 'None' }" />
+                        </t:rowSettingsTemplate>
+
+                        <t:columns>
+                            <t:Column
                                 id="colPedido"
                                 width="6rem"
-                                importance="High"
+                                sortProperty="pedido"
+                                filterProperty="pedido"
                             >
                                 <Text text="Pedido" />
-                            </Column>
-                            <Column
-                                id="colMaterial"
-                                width="15rem"
-                                importance="High"
-                            >
-                                <Text text="Material" />
-                            </Column>
-                            <Column
-                                id="colTipoRetencion"
-                                width="5rem"
-                                importance="Low"
-                            >
-                                <Text text="Tipo Retención" />
-                            </Column>
-                            <Column
-                                id="colEntrega"
-                                width="7rem"
-                                importance="Low"
-                            >
-                                <Text text="Entrega" />
-                            </Column>
-                            <Column
-                                id="colCentroSum"
-                                width="6rem"
-                                importance="Low"
-                            >
-                                <Text text="Centro Sum" />
-                            </Column>
-                            <Column
-                                id="colCentroRecep"
-                                width="6rem"
-                                importance="Low"
-                            >
-                                <Text text="Centro Recep" />
-                            </Column>
-                            <Column
-                                id="colCantSal"
-                                width="6rem"
-                                importance="Medium"
-                            >
-                                <Text text="Cant Sal" />
-                            </Column>
-                            <Column
-                                id="colCantEnt"
-                                width="6rem"
-                                importance="Medium"
-                            >
-                                <Text text="Cant Ent" />
-                            </Column>
-                            <Column
-                                id="colDiffCantidad"
-                                width="6rem"
-                                importance="Medium"
-                            >
-                                <Text text="Dif. Cantidad" />
-                            </Column>
-                            <Column
-                                id="colPrecioSal"
-                                width="7rem"
-                                importance="Medium"
-                            >
-                                <Text text="Precio Sal" />
-                            </Column>
-                            <Column
-                                id="colPrecioEnt"
-                                width="7rem"
-                                importance="Medium"
-                            >
-                                <Text text="Precio Ent" />
-                            </Column>
-                            <Column
-                                id="colDiffPrecio"
-                                width="6rem"
-                                importance="Medium"
-                            >
-                                <Text text="Dif. Precio" />
-                            </Column>
-                            <Column
-                                id="colStatusFacturacion"
-                                width="7rem"
-                                importance="Medium"
-                                visible="{worklistView>/colStatusFacturacionVisible}"
-                            >
-                                <Text text="Status Facturación" />
-                            </Column>
-                            <Column
-                                id="colFactura"
-                                width="8rem"
-                                importance="High"
-                                visible="{worklistView>/colFacturaVisible}"
-                            >
-                                <Text text="Factura" />
-                            </Column>
-                            <Column
-                                id="colStatusEnvioSunat"
-                                width="7rem"
-                                importance="Low"
-                                visible="{worklistView>/colStatusEnvioSunatVisible}"
-                            >
-                                <Text text="Status Envio Sunat" />
-                            </Column>
-                            <Column
-                                id="colReferencia"
-                                width="8rem"
-                                importance="Low"
-                                visible="{worklistView>/colReferenciaVisible}"
-                            >
-                                <Text text="Referencia" />
-                            </Column>
-                            <Column
-                                id="colStatusMIRO"
-                                width="7rem"
-                                importance="Low"
-                                visible="{worklistView>/colStatusMIROVisible}"
-                            >
-                                <Text text="Status MIRO" />
-                            </Column>
-                            <Column
-                                id="colDocMIRO"
-                                width="7rem"
-                                importance="Low"
-                                visible="{worklistView>/colDocMIROVisible}"
-                            >
-                                <Text text="Doc. MIRO" />
-                            </Column>
-                            <Column
-                                id="colMensajeUltimoEvento"
-                                width="15rem"
-                                importance="Low"
-                            >
-                                <Text text="Mensaje del Último Evento" />
-                            </Column>
-                        </columns>
-                        <items>
-                            <ColumnListItem
-                                type="Inactive"
-                                press=".onPress"
-                                highlight="{= ${pedidos>_mismatch} ? 'Error' : 'None' }"
-                            >
-                                <cells>
+                                <t:template>
                                     <ObjectIdentifier
                                         title="{pedidos>pedido}"
                                         text="{pedidos>pos}"
                                     />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colMaterial"
+                                width="15rem"
+                                sortProperty="material"
+                                filterProperty="material"
+                            >
+                                <Text text="Material" />
+                                <t:template>
                                     <ObjectIdentifier
                                         title="{pedidos>material}"
                                         text="{pedidos>descripcion}"
                                     />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colTipoRetencion"
+                                width="8rem"
+                                sortProperty="tipoRetencion"
+                                filterProperty="tipoRetencion"
+                            >
+                                <Text text="Tipo Retención" />
+                                <t:template>
                                     <Text text="{pedidos>tipoRetencion}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colEntrega"
+                                width="7rem"
+                                sortProperty="entrega"
+                                filterProperty="entrega"
+                            >
+                                <Text text="Entrega" />
+                                <t:template>
                                     <Text text="{pedidos>entrega}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colCentroSum"
+                                width="7rem"
+                                sortProperty="centroSum"
+                                filterProperty="centroSum"
+                            >
+                                <Text text="Centro Vend" />
+                                <t:template>
                                     <Text text="{pedidos>centroSum}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colCentroRecep"
+                                width="7rem"
+                                sortProperty="centroRecep"
+                                filterProperty="centroRecep"
+                            >
+                                <Text text="Centro Comp" />
+                                <t:template>
                                     <Text text="{pedidos>centroRecep}" />
-                                    <ObjectNumber
-                                        number="{pedidos>cantSal}"
-                                        unit="PC"
-                                    />
-                                    <ObjectNumber
-                                        number="{pedidos>cantEnt}"
-                                        unit="PC"
-                                    />
-                                    <ObjectNumber
-                                        number="{= ${pedidos>cantSal} - ${pedidos>cantEnt} }"
-                                        unit="PC"
-                                    />
-                                    <ObjectNumber
-                                        number="{pedidos>precioSal}"
-                                        unit="S/"
-                                    />
-                                    <ObjectNumber
-                                        number="{pedidos>precioEnt}"
-                                        unit="S/"
-                                    />
-                                    <ObjectNumber
-                                        number="{= ${pedidos>precioSal} - ${pedidos>precioEnt} }"
-                                        unit="S/"
-                                    />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colCantSal"
+                                width="6rem"
+                                hAlign="End"
+                                sortProperty="cantSal"
+                                filterProperty="cantSal"
+                            >
+                                <Text text="Cant Sal" />
+                                <t:template>
+                                    <ObjectNumber number="{pedidos>cantSal}" unit="PC" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colCantEnt"
+                                width="6rem"
+                                hAlign="End"
+                                sortProperty="cantEnt"
+                                filterProperty="cantEnt"
+                            >
+                                <Text text="Cant Ent" />
+                                <t:template>
+                                    <ObjectNumber number="{pedidos>cantEnt}" unit="PC" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colDiffCantidad"
+                                width="7rem"
+                                hAlign="End"
+                                sortProperty="difCantidadCalc"
+                                filterProperty="difCantidadCalc"
+                            >
+                                <Text text="Dif. Cantidad" />
+                                <t:template>
+                                    <ObjectNumber number="{pedidos>difCantidadCalc}" unit="PC" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colPrecioSal"
+                                width="7rem"
+                                hAlign="End"
+                                sortProperty="precioSal"
+                                filterProperty="precioSal"
+                            >
+                                <Text text="Importe Sal" />
+                                <t:template>
+                                    <ObjectNumber number="{pedidos>precioSal}" unit="S/" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colPrecioEnt"
+                                width="7rem"
+                                hAlign="End"
+                                sortProperty="precioEnt"
+                                filterProperty="precioEnt"
+                            >
+                                <Text text="Importe Ent" />
+                                <t:template>
+                                    <ObjectNumber number="{pedidos>precioEnt}" unit="S/" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colDiffPrecio"
+                                width="7rem"
+                                hAlign="End"
+                                sortProperty="difImporteCalc"
+                                filterProperty="difImporteCalc"
+                            >
+                                <Text text="Dif. Importe" />
+                                <t:template>
+                                    <ObjectNumber number="{pedidos>difImporteCalc}" unit="S/" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colStatusFacturacion"
+                                width="10rem"
+                                visible="{worklistView>/colStatusFacturacionVisible}"
+                                sortProperty="statusFacturacion"
+                                filterProperty="statusFacturacion"
+                            >
+                                <Text text="Status Facturación" />
+                                <t:template>
                                     <Text text="{pedidos>statusFacturacion}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colFactura"
+                                width="8rem"
+                                visible="{worklistView>/colFacturaVisible}"
+                                sortProperty="factura"
+                                filterProperty="factura"
+                            >
+                                <Text text="Factura" />
+                                <t:template>
                                     <Text text="{pedidos>factura}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colStatusEnvioSunat"
+                                width="10rem"
+                                visible="{worklistView>/colStatusEnvioSunatVisible}"
+                                sortProperty="statusEnvioSunat"
+                                filterProperty="statusEnvioSunat"
+                            >
+                                <Text text="Status Envío Sunat" />
+                                <t:template>
                                     <Text text="{pedidos>statusEnvioSunat}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colReferencia"
+                                width="8rem"
+                                visible="{worklistView>/colReferenciaVisible}"
+                                sortProperty="referencia"
+                                filterProperty="referencia"
+                            >
+                                <Text text="Referencia" />
+                                <t:template>
                                     <Text text="{pedidos>referencia}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colStatusMIRO"
+                                width="8rem"
+                                visible="{worklistView>/colStatusMIROVisible}"
+                                sortProperty="statusMiro"
+                                filterProperty="statusMiro"
+                            >
+                                <Text text="Status MIRO" />
+                                <t:template>
                                     <Text text="{pedidos>statusMiro}" />
-                                    <ObjectNumber number="{pedidos>docMiro}" />
-                                    <Text
-                                        text="{pedidos>mensajeUltimoEvento}"
-                                    />
-                                </cells>
-                            </ColumnListItem>
-                        </items>
-                    </Table>
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colDocMIRO"
+                                width="7rem"
+                                visible="{worklistView>/colDocMIROVisible}"
+                                sortProperty="docMiro"
+                                filterProperty="docMiro"
+                            >
+                                <Text text="Doc. MIRO" />
+                                <t:template>
+                                    <Text text="{pedidos>docMiro}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colMensajeUltimoEvento"
+                                width="18rem"
+                                sortProperty="mensajeUltimoEvento"
+                                filterProperty="mensajeUltimoEvento"
+                            >
+                                <Text text="Mensaje del Último Evento" />
+                                <t:template>
+                                    <Text text="{pedidos>mensajeUltimoEvento}" />
+                                </t:template>
+                            </t:Column>
+                        </t:columns>
+                    </t:Table>
                 </content>
             </IconTabBar>
         </semantic:content>
@@ -317,11 +380,11 @@
                                 <core:Item
                                     key="{worklistView>key}"
                                     text="{worklistView>text}"
-                                    xmlns:core="sap.ui.core"
                                 />
                             </ComboBox>
                         </fb:control>
                     </fb:FilterGroupItem>
+
                     <fb:FilterGroupItem
                         groupName="_BASIC"
                         name="CentroRecep"
@@ -339,11 +402,11 @@
                                 <core:Item
                                     key="{worklistView>key}"
                                     text="{worklistView>text}"
-                                    xmlns:core="sap.ui.core"
                                 />
                             </ComboBox>
                         </fb:control>
                     </fb:FilterGroupItem>
+
                     <fb:FilterGroupItem
                         groupName="_BASIC"
                         name="Entrega"
@@ -357,6 +420,7 @@
                             />
                         </fb:control>
                     </fb:FilterGroupItem>
+
                     <fb:FilterGroupItem
                         groupName="_BASIC"
                         name="Material"
@@ -374,7 +438,6 @@
                                 <core:Item
                                     key="{worklistView>key}"
                                     text="{worklistView>text}"
-                                    xmlns:core="sap.ui.core"
                                 />
                             </ComboBox>
                         </fb:control>
@@ -382,8 +445,9 @@
                 </fb:filterGroupItems>
             </fb:FilterBar>
         </semantic:headerContent>
-		<semantic:messagesIndicator>
-			<semantic:MessagesIndicator press="onMessagesButtonPress"/>
-		</semantic:messagesIndicator>
+
+        <semantic:messagesIndicator>
+            <semantic:MessagesIndicator press="onMessagesButtonPress" />
+        </semantic:messagesIndicator>
     </semantic:SemanticPage>
 </mvc:View>
