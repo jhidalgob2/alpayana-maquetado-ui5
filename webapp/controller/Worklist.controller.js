@@ -52,12 +52,12 @@ sap.ui.define([
                 tableBusyDelay: 0,
 
                 // Column visibility flags by "Estado"
-                colStatusFacturacionVisible: false,
-                colFacturaVisible: false,
-                colStatusEnvioSunatVisible: false,
-                colReferenciaVisible: false,
-                colStatusMIROVisible: false,
-                colDocMIROVisible: false,
+                colStatusFacturacionVisible: true,
+                colFacturaVisible: true,
+                colStatusEnvioSunatVisible: true,
+                colReferenciaVisible: true,
+                colStatusMIROVisible: true,
+                colDocMIROVisible: true,
 
                 // Filter options (filled from OData)
                 centroSumOptions: [],
@@ -76,8 +76,8 @@ sap.ui.define([
 
                 // 3 procesos (botones)
                 facturarBtnVisible: true,
-                sunatBtnVisible: false,
-                miroBtnVisible: false,
+                sunatBtnVisible: true,
+                miroBtnVisible: true,
 
                 // habilitación (según selección + validaciones)
                 canFacturar: false,
@@ -667,21 +667,23 @@ success: function (oData) {
 
             // Column visibility based on tab
             if (sKey === "inicial") {
-                oViewModel.setProperty("/colStatusFacturacionVisible", false);
-                oViewModel.setProperty("/colFacturaVisible", false);
-                oViewModel.setProperty("/colStatusEnvioSunatVisible", false);
-                oViewModel.setProperty("/colReferenciaVisible", false);
-                oViewModel.setProperty("/colStatusMIROVisible", false);
-                oViewModel.setProperty("/colDocMIROVisible", false);
-                oViewModel.setProperty("/tableSelectionMode", "MultiToggle");
-                oViewModel.setProperty("/facturarBtnVisible", true);
-oViewModel.setProperty("/sunatBtnVisible", false);
-oViewModel.setProperty("/miroBtnVisible", false);
+                // En "Inicial" pueden convivir registros en distintos estados, así que mostramos todo
+                oViewModel.setProperty("/colStatusFacturacionVisible", true);
+                oViewModel.setProperty("/colFacturaVisible", true);
+                oViewModel.setProperty("/colStatusEnvioSunatVisible", true);
+                oViewModel.setProperty("/colReferenciaVisible", true);
+                oViewModel.setProperty("/colStatusMIROVisible", true);
+                oViewModel.setProperty("/colDocMIROVisible", true);
 
-                // "Inicial": still no factura
-                aFilters = [
-                    new Filter("factura", FilterOperator.EQ, "")
-                ];
+                oViewModel.setProperty("/tableSelectionMode", "MultiToggle");
+
+                // Mostrar los 3 botones; se habilitan por selección + validación
+                oViewModel.setProperty("/facturarBtnVisible", true);
+                oViewModel.setProperty("/sunatBtnVisible", true);
+                oViewModel.setProperty("/miroBtnVisible", true);
+
+                // Sin filtro en inicial (todos los estados)
+                aFilters = [];
             } else if (sKey === "facturadoSAP") {
                 oViewModel.setProperty("/colStatusFacturacionVisible", true);
                 oViewModel.setProperty("/colFacturaVisible", true);
@@ -785,6 +787,8 @@ _getEligibilityFlagsForTab: function (sKey, aSelectedRows) {
 
     if (sKey === "inicial") {
         canFact = fnAny(aSelectedRows, this._isEligibleFacturar.bind(this));
+        canSunat = fnAny(aSelectedRows, this._isEligibleSunat.bind(this));
+        canMiro = fnAny(aSelectedRows, this._isEligibleMiro.bind(this));
     } else if (sKey === "facturadoSAP") {
         canSunat = fnAny(aSelectedRows, this._isEligibleSunat.bind(this));
     } else if (sKey === "enviadoSUNAT") {
@@ -1074,6 +1078,16 @@ _postEntregaProceso: function (sTipoProc, sPeriodProc, aRows) {
 _buildEntregaPayload: function (sTipoProc, sPeriodProc, aRows) {
     var oViewModel = this.getModel("worklistView");
 
+    // Evita colisiones de IdItem entre ejecuciones (el backend devuelve EntregaListSet/EntregaRespuestaSet
+    // identificado por IdItem). Dejamos idItem limpio antes de asignar IDs nuevos.
+    try {
+        var oPedidosModel = this.getModel("pedidos");
+        var aAll = (oPedidosModel && oPedidosModel.getData) ? (oPedidosModel.getData() || []) : [];
+        if (Array.isArray(aAll)) {
+            aAll.forEach(function (r) { if (r) r.idItem = ""; });
+        }
+    } catch (e) { /* ignore */ }
+
     var sCentroVend = oViewModel.getProperty("/selectedCentroSum") || "";
     var sCentroComp = oViewModel.getProperty("/selectedCentroRecep") || "";
     var sExtwg = oViewModel.getProperty("/selectedMaterial") || "";
@@ -1081,21 +1095,29 @@ _buildEntregaPayload: function (sTipoProc, sPeriodProc, aRows) {
     var oHead = {
         Fepro: "",
         CentroVend: sCentroVend,
-        CentroComp: sCentroComp,
         Extwg: sExtwg,
         PeriodProc: sPeriodProc || "",
         TipoProc: sTipoProc
     };
 
-    var aList = (aRows || []).map(function (r) {
-        var sIdItem = (r.idItem || (String(r.pedido || "") + "_" + String(r.pos || "")));
+    // IMPORTANTE:
+    // IdItem en el servicio OData tiene restricciones de faceta (tipo/longitud/patrón).
+    // No debemos enviar concatenados tipo "4500..._00030" porque el Gateway lo rechaza.
+    // En la documentación, IdItem se usa solo como identificador de la asociación EntregaListSet
+    // y para mapear mensajes en EntregaRespuestaSet.
+    // Por eso generamos un IdItem corto y seguro (secuencial) por request.
+    var aList = (aRows || []).map(function (r, i) {
+        var sIdItem = String(i + 1); // "1", "2", ... (válido para Edm.Int32 o Edm.String corto)
+        // Guardamos el idItem en la fila local para poder mapear la respuesta
+        try { r.idItem = sIdItem; } catch (e) { /* ignore */ }
         return {
-            IdItem: sIdItem,
+            IdItem: "",
             Ebeln: r.pedido || "",
             Ebelp: r.pos || "",
             DocSal643: r.docSal643 || "",
             Ejercicio643: r.ejercicio643 || "",
             Posicion643: r.posicion643 || "",
+            CentroComp: sCentroComp,
             Factura: r.factura || "",
             StatusFact: r.statusFacturacion || "",
             Referencia: r.referencia || "",
