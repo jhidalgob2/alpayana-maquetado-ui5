@@ -103,21 +103,7 @@
                         </t:rowSettingsTemplate>
 
                         <t:columns>
-                            <t:Column
-                                id="colEstadoTol"
-                                width="12rem"
-                                sortProperty="estadoTol"
-                                filterProperty="estadoTol"
-                            >
-                                <Text text="Estado Tol" />
-                                <t:template>
-                                    <ObjectStatus
-                                        icon="sap-icon://circle-task"
-                                        state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}"
-                                        text="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolText'}"
-                                    />
-                                </t:template>
-                            </t:Column>
+             
 
                             <t:Column
                                 id="colPedido"
@@ -179,7 +165,7 @@
                                 sortProperty="centroSum"
                                 filterProperty="centroSum"
                             >
-                                <Text text="Centro Vend" />
+                                <Text text="Centro Vendedor" />
                                 <t:template>
                                     <ObjectIdentifier title="{pedidos>centroSum}" text="{pedidos>centroSumDesc}" />
                                 </t:template>
@@ -191,7 +177,7 @@
                                 sortProperty="centroRecep"
                                 filterProperty="centroRecep"
                             >
-                                <Text text="Centro Comp" />
+                                <Text text="Centro Comprador" />
                                 <t:template>
                                     <ObjectIdentifier title="{pedidos>centroRecep}" text="{pedidos>centroRecepDesc}" />
                                 </t:template>
@@ -353,7 +339,21 @@
                                     <Text text="{pedidos>docMiro}" />
                                 </t:template>
                             </t:Column>
-
+   <t:Column
+                                id="colEstadoTol"
+                                width="12rem"
+                                sortProperty="estadoTol"
+                                filterProperty="estadoTol"
+                            >
+                                <Text text="Estado Tolerancia" />
+                                <t:template>
+                                    <ObjectStatus
+                                        icon="sap-icon://circle-task"
+                                        state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}"
+                                        text="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolText'}"
+                                    />
+                                </t:template>
+                            </t:Column>
                             <t:Column
                                 id="colMensajeUltimoEvento"
                                 width="18rem"
@@ -365,6 +365,7 @@
                                     <Text text="{pedidos>mensajeUltimoEvento}" />
                                 </t:template>
                             </t:Column>
+                                        
                         </t:columns>
                     </t:Table>
                 </content>
