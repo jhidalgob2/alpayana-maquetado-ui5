@@ -72,7 +72,9 @@
                 "sap.ui.core": {},
                 "sap.f": {},
                 "sap.ui.comp": {},
-                "sap.ui.export": {}
+                "sap.ui.export": {},
+                "sap.ui.table": {}
+
             }
         },
         "contentDensities": {

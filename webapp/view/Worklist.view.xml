@@ -76,13 +76,31 @@
                                 />
                                 <ToolbarSpacer />
                                 <Button
-                                    id="processSelectedBtn"
-                                    text="Procesar Selección"
-                                    icon="sap-icon://process"
-                                    enabled="{= ${worklistView>/selectedRowsCount} > 0 }"
-                                    press=".onProcessSelected"
-                                    tooltip="Procesar filas seleccionadas"
-                                    visible="{worklistView>/processBtnVisible}"
+                                    id="btnFacturar"
+                                    text="Facturar"
+                                    icon="sap-icon://sales-order"
+                                    enabled="{worklistView>/canFacturar}"
+                                    press=".onFacturar"
+                                    tooltip="FACTURAR (TipoProc=FACT)"
+                                    visible="{worklistView>/facturarBtnVisible}"
+                                />
+                                <Button
+                                    id="btnSunat"
+                                    text="REG SUNAT"
+                                    icon="sap-icon://paper-plane"
+                                    enabled="{worklistView>/canSunat}"
+                                    press=".onRegistrarSunat"
+                                    tooltip="Registrar/Enviar a SUNAT (TipoProc=ENSN)"
+                                    visible="{worklistView>/sunatBtnVisible}"
+                                />
+                                <Button
+                                    id="btnMiro"
+                                    text="Reg Factura MIRO"
+                                    icon="sap-icon://expense-report"
+                                    enabled="{worklistView>/canMiro}"
+                                    press=".onRegistrarMiro"
+                                    tooltip="Registrar factura MIRO (TipoProc=MIRO)"
+                                    visible="{worklistView>/miroBtnVisible}"
                                 />
                                 <Button
                                     id="exportBtn"

@@ -72,7 +72,17 @@ sap.ui.define([
                 // Table / toolbar state
                 selectedRowsCount: 0,
                 tableSelectionMode: "MultiToggle",
-                processBtnVisible: true
+                processBtnVisible: true,
+
+                // 3 procesos (botones)
+                facturarBtnVisible: true,
+                sunatBtnVisible: false,
+                miroBtnVisible: false,
+
+                // habilitación (según selección + validaciones)
+                canFacturar: false,
+                canSunat: false,
+                canMiro: false
             });
             this.setModel(oViewModel, "worklistView");
 
@@ -95,6 +105,7 @@ sap.ui.define([
             // Dummy messages (kept as-is; later you can replace with real backend feedback)
             var oMessageProcessor = new ControlMessageProcessor();
             Messaging.registerMessageProcessor(oMessageProcessor);
+            this._oMessageProcessor = oMessageProcessor;
 
             Messaging.addMessages([
                 new Message({
@@ -343,6 +354,7 @@ success: function (oData) {
             return {
                 // Visible in UI
                 pedido: o.Ebeln || "",
+                idItem: (o.IdItem || ((o.Ebeln || "") + "_" + (o.Ebelp || ""))),
                 pos: o.Ebelp || "",
                 material: o.Matnr || "",
                 descripcion: o.Maktx || "",
@@ -662,7 +674,9 @@ success: function (oData) {
                 oViewModel.setProperty("/colStatusMIROVisible", false);
                 oViewModel.setProperty("/colDocMIROVisible", false);
                 oViewModel.setProperty("/tableSelectionMode", "MultiToggle");
-                oViewModel.setProperty("/processBtnVisible", true);
+                oViewModel.setProperty("/facturarBtnVisible", true);
+oViewModel.setProperty("/sunatBtnVisible", false);
+oViewModel.setProperty("/miroBtnVisible", false);
 
                 // "Inicial": still no factura
                 aFilters = [
@@ -676,7 +690,9 @@ success: function (oData) {
                 oViewModel.setProperty("/colStatusMIROVisible", false);
                 oViewModel.setProperty("/colDocMIROVisible", false);
                 oViewModel.setProperty("/tableSelectionMode", "MultiToggle");
-                oViewModel.setProperty("/processBtnVisible", true);
+                oViewModel.setProperty("/facturarBtnVisible", false);
+oViewModel.setProperty("/sunatBtnVisible", true);
+oViewModel.setProperty("/miroBtnVisible", false);
 
                 // Facturado SAP: con factura y sin referencia
                 aFilters = [
@@ -691,7 +707,9 @@ success: function (oData) {
                 oViewModel.setProperty("/colStatusMIROVisible", false);
                 oViewModel.setProperty("/colDocMIROVisible", false);
                 oViewModel.setProperty("/tableSelectionMode", "MultiToggle");
-                oViewModel.setProperty("/processBtnVisible", true);
+                oViewModel.setProperty("/facturarBtnVisible", false);
+oViewModel.setProperty("/sunatBtnVisible", false);
+oViewModel.setProperty("/miroBtnVisible", true);
 
                 // Enviado SUNAT: con referencia y aún sin Doc MIRO
                 aFilters = [
@@ -706,7 +724,9 @@ success: function (oData) {
                 oViewModel.setProperty("/colStatusMIROVisible", true);
                 oViewModel.setProperty("/colDocMIROVisible", true);
                 oViewModel.setProperty("/tableSelectionMode", "None");
-                oViewModel.setProperty("/processBtnVisible", false);
+                oViewModel.setProperty("/facturarBtnVisible", false);
+oViewModel.setProperty("/sunatBtnVisible", false);
+oViewModel.setProperty("/miroBtnVisible", false);
 
                 // Registrado MIRO: con Doc MIRO
                 aFilters = [
@@ -714,160 +734,472 @@ success: function (oData) {
                 ];
             }
 
-            oBinding.filter(aFilters);
+// Reset selección al cambiar de pestaña
+var oTable2 = this.byId("table");
+if (oTable2 && oTable2.clearSelection) {
+    oTable2.clearSelection();
+}
+oViewModel.setProperty("/selectedRowsCount", 0);
+oViewModel.setProperty("/canFacturar", false);
+oViewModel.setProperty("/canSunat", false);
+oViewModel.setProperty("/canMiro", false);
+
+oBinding.filter(aFilters);
         },
 
         onSelectionChange: function () {
-            var oTable = this.byId("table");
-            var aSelectedIndices = (oTable && oTable.getSelectedIndices) ? oTable.getSelectedIndices() : [];
-            var iCount = Array.isArray(aSelectedIndices) ? aSelectedIndices.length : 0;
-            this.getModel("worklistView").setProperty("/selectedRowsCount", iCount);
+            var oViewModel = this.getModel("worklistView");
+            var aSelected = this._getSelectedRowsData();
+
+            oViewModel.setProperty("/selectedRowsCount", aSelected.length);
+
+            // Habilita el botón correcto según la pestaña actual + validaciones
+            var oIconTabBar = this.byId("iconTabBar");
+            var sKey = oIconTabBar ? oIconTabBar.getSelectedKey() : "inicial";
+            var oFlags = this._getEligibilityFlagsForTab(sKey, aSelected);
+
+            oViewModel.setProperty("/canFacturar", oFlags.canFacturar);
+            oViewModel.setProperty("/canSunat", oFlags.canSunat);
+            oViewModel.setProperty("/canMiro", oFlags.canMiro);
+        },
+
+        /* =========================================================== */
+/*  3 Procesos: FACTURAR / REG SUNAT / MIRO                     */
+/* =========================================================== */
+
+_getSelectedRowsData: function () {
+    var oTable = this.byId("table");
+    if (!oTable || !oTable.getSelectedIndices) return [];
+    var aIdx = oTable.getSelectedIndices() || [];
+    return aIdx.map(function (i) {
+        var oCtx = oTable.getContextByIndex(i);
+        return oCtx ? oCtx.getObject() : null;
+    }).filter(Boolean);
+},
+
+_getEligibilityFlagsForTab: function (sKey, aSelectedRows) {
+    // Devuelve "puede" según la pestaña actual y validaciones mínimas.
+    var fnAny = function (a, fn) { return Array.isArray(a) && a.some(fn); };
+
+    var canFact = false, canSunat = false, canMiro = false;
+
+    if (sKey === "inicial") {
+        canFact = fnAny(aSelectedRows, this._isEligibleFacturar.bind(this));
+    } else if (sKey === "facturadoSAP") {
+        canSunat = fnAny(aSelectedRows, this._isEligibleSunat.bind(this));
+    } else if (sKey === "enviadoSUNAT") {
+        canMiro = fnAny(aSelectedRows, this._isEligibleMiro.bind(this));
+    }
+    return { canFacturar: canFact, canSunat: canSunat, canMiro: canMiro };
+},
+
+_isEligibleFacturar: function (row) {
+    // Reglas clave del Word: sin diferencia de cantidad y dentro de tolerancia (<=5) para pasar a facturación
+    // + no debe estar ya facturado
+    var nDifCant = Number(row.difCantidadCalc || 0);
+    var nTol = Number(row.estadoTol || 0);
+    var sFactura = (row.factura || "").trim();
+    return !sFactura && nDifCant === 0 && nTol <= 5;
+},
+
+_isEligibleSunat: function (row) {
+    // Solo si se ha facturado previamente
+    var sFactura = (row.factura || "").trim();
+    var sRef = (row.referencia || "").trim();
+    var sStatusSunat = (row.statusEnvioSunat || "").trim();
+    // Si ya tiene referencia o ya está AP, evitamos re-enviar desde este botón
+    var bYaAprobado = (sStatusSunat.indexOf("AP") === 0) || (sStatusSunat.indexOf(" AP") > -1) || (sStatusSunat.indexOf("Aprob") > -1);
+    return !!sFactura && !sRef && !bYaAprobado;
+},
+
+_isEligibleMiro: function (row) {
+    // Solo si ya se facturó y SUNAT está aprobado (AP) y no tiene Doc MIRO
+    var sFactura = (row.factura || "").trim();
+    var sDocMiro = (row.docMiro || "").trim();
+    var sStatusSunat = (row.statusEnvioSunat || "").trim();
+    var bAP = (sStatusSunat.indexOf("AP") === 0) || (sStatusSunat.indexOf(" AP") > -1);
+    // además: sin dif cantidad + dentro tolerancia (para no romper el flujo)
+    var nDifCant = Number(row.difCantidadCalc || 0);
+    var nTol = Number(row.estadoTol || 0);
+    return !!sFactura && !sDocMiro && bAP && nDifCant === 0 && nTol <= 5;
+},
+
+_splitValidInvalid: function (sTipoProc, aRows) {
+    var aValid = [];
+    var aInvalid = [];
+
+    var fnElig = null;
+    if (sTipoProc === "FACT") fnElig = this._isEligibleFacturar.bind(this);
+    if (sTipoProc === "ENSN") fnElig = this._isEligibleSunat.bind(this);
+    if (sTipoProc === "MIRO") fnElig = this._isEligibleMiro.bind(this);
+
+    (aRows || []).forEach(function (r) {
+        if (!r) return;
+        var ok = fnElig ? fnElig(r) : true;
+        if (ok) {
+            aValid.push(r);
+        } else {
+            aInvalid.push({
+                pedido: r.pedido,
+                pos: r.pos,
+                material: r.material,
+                descripcion: r.descripcion,
+                motivo: this._getInvalidReason(sTipoProc, r)
+            });
+        }
+    }.bind(this));
+
+    return { valid: aValid, invalid: aInvalid };
+},
+
+_getInvalidReason: function (sTipoProc, r) {
+    if (!r) return "Registro inválido";
+    var nDifCant = Number(r.difCantidadCalc || 0);
+    var nTol = Number(r.estadoTol || 0);
+    var sFactura = (r.factura || "").trim();
+    var sRef = (r.referencia || "").trim();
+    var sDocMiro = (r.docMiro || "").trim();
+    var sStatusSunat = (r.statusEnvioSunat || "").trim();
+
+    if (sTipoProc === "FACT") {
+        if (sFactura) return "Ya tiene factura";
+        if (nDifCant !== 0) return "Dif. cantidad ≠ 0";
+        if (nTol > 5) return "Fuera de tolerancia (> 5)";
+        return "No cumple validaciones de facturación";
+    }
+    if (sTipoProc === "ENSN") {
+        if (!sFactura) return "Sin factura";
+        if (sRef) return "Ya tiene referencia";
+        if (sStatusSunat.indexOf("AP") === 0) return "SUNAT ya aprobado (AP)";
+        return "No cumple validaciones de SUNAT";
+    }
+    if (sTipoProc === "MIRO") {
+        if (!sFactura) return "Sin factura";
+        if (sDocMiro) return "MIRO ya registrado";
+        if (!(sStatusSunat.indexOf("AP") === 0 || sStatusSunat.indexOf(" AP") > -1)) return "SUNAT no aprobado (AP)";
+        if (nDifCant !== 0) return "Dif. cantidad ≠ 0";
+        if (nTol > 5) return "Fuera de tolerancia (> 5)";
+        return "No cumple validaciones de MIRO";
+    }
+    return "Registro inválido";
+},
+
+_confirmSkipInvalid: function (sTitulo, aInvalid, fnContinue) {
+    // Muestra hasta 12 inválidos en el mensaje; el resto se resume.
+    var iMax = 12;
+    var aLines = (aInvalid || []).slice(0, iMax).map(function (x) {
+        var sKey = [x.pedido, x.pos].filter(Boolean).join("-");
+        return "• " + sKey + " / " + (x.material || "") + " — " + (x.motivo || "");
+    });
+    var sMore = (aInvalid && aInvalid.length > iMax) ? ("\n\n(+ " + (aInvalid.length - iMax) + " más)") : "";
+    var sMsg = "Hay " + aInvalid.length + " registro(s) que NO cumplen validación y NO se enviarán.\n\n" + aLines.join("\n") + sMore + "\n\n¿Deseas continuar solo con los válidos?";
+
+    MessageBox.confirm(sMsg, {
+        title: sTitulo,
+        actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
+        emphasizedAction: MessageBox.Action.OK,
+        onClose: function (sAction) {
+            if (sAction === MessageBox.Action.OK && typeof fnContinue === "function") {
+                fnContinue();
+            }
+        }
+    });
+},
+
+onFacturar: function () {
+    // FACTURAR (TipoProc=FACT) con popup para periodo (MM/YYYY)
+    var aSelected = this._getSelectedRowsData();
+    if (!aSelected.length) {
+        MessageToast.show("Seleccione al menos un registro.");
+        return;
+    }
+
+    var oSplit = this._splitValidInvalid("FACT", aSelected);
+    if (!oSplit.valid.length) {
+        MessageBox.warning("Ningún registro cumple validación para FACTURAR (sin dif. cantidad y dentro de tolerancia <= 5).");
+        return;
+    }
+
+    var fnGo = function (sPeriodProc) {
+        this._postEntregaProceso("FACT", sPeriodProc, oSplit.valid);
+    }.bind(this);
+
+    // Si hay inválidos, confirmamos continuar con válidos (antes de pedir periodo)
+    if (oSplit.invalid.length) {
+        this._confirmSkipInvalid("FACTURAR", oSplit.invalid, function () {
+            this._promptPeriodProc(fnGo);
+        }.bind(this));
+    } else {
+        this._promptPeriodProc(fnGo);
+    }
+},
+
+_promptPeriodProc: function (fnOnOk) {
+    // Reusa el patrón de popup existente, pero pide periodo mes/año.
+    var that = this;
+
+    if (this._oPeriodDialog) {
+        this._oPeriodDialog.destroy();
+    }
+
+    var oDP = new sap.m.DatePicker("dpPeriodProc", {
+        displayFormat: "MM/yyyy",
+        valueFormat: "MM/yyyy",
+        placeholder: "MM/YYYY",
+        required: true
+    });
+
+    this._oPeriodDialog = new sap.m.Dialog({
+        title: "Periodo de facturación",
+        type: "Message",
+        content: [
+            new sap.m.Label({ text: "Ingrese el periodo (Mes/Año):", labelFor: oDP }),
+            oDP
+        ],
+        beginButton: new sap.m.Button({
+            text: "Aceptar",
+            type: "Emphasized",
+            press: function () {
+                var sVal = oDP.getValue(); // ya viene MM/yyyy
+                if (!sVal) {
+                    oDP.setValueState("Error");
+                    oDP.setValueStateText("Debe ingresar un periodo (MM/YYYY).");
+                    return;
+                }
+                oDP.setValueState("None");
+                that._oPeriodDialog.close();
+                if (typeof fnOnOk === "function") {
+                    // normalizamos a MM/YYYY (con slash) si el control devuelve MM/yyyy
+                    var sNorm = sVal.replace("-", "/").replace(".", "/").replace(" ", "");
+                    sNorm = sNorm.replace(" /", "/").replace("/ ", "/");
+                    if (sNorm.indexOf("/") === -1 && sNorm.indexOf(" ") > -1) {
+                        sNorm = sNorm.replace(" ", "/");
+                    }
+                    fnOnOk(sNorm);
+                }
+            }
+        }),
+        endButton: new sap.m.Button({
+            text: "Cancelar",
+            press: function () { that._oPeriodDialog.close(); }
+        }),
+        afterClose: function () {
+            that._oPeriodDialog.destroy();
+        }
+    });
+
+    this._oPeriodDialog.open();
+},
+
+onRegistrarSunat: function () {
+    // REG SUNAT (TipoProc=ENSN)
+    var aSelected = this._getSelectedRowsData();
+    if (!aSelected.length) {
+        MessageToast.show("Seleccione al menos un registro.");
+        return;
+    }
+
+    var oSplit = this._splitValidInvalid("ENSN", aSelected);
+    if (!oSplit.valid.length) {
+        MessageBox.warning("Ningún registro cumple validación para REG SUNAT (requiere Factura).");
+        return;
+    }
+
+    if (oSplit.invalid.length) {
+        this._confirmSkipInvalid("REG SUNAT", oSplit.invalid, function () {
+            this._postEntregaProceso("ENSN", "", oSplit.valid);
+        }.bind(this));
+    } else {
+        this._postEntregaProceso("ENSN", "", oSplit.valid);
+    }
+},
+
+onRegistrarMiro: function () {
+    // Reg Factura MIRO (TipoProc=MIRO)
+    var aSelected = this._getSelectedRowsData();
+    if (!aSelected.length) {
+        MessageToast.show("Seleccione al menos un registro.");
+        return;
+    }
+
+    var oSplit = this._splitValidInvalid("MIRO", aSelected);
+    if (!oSplit.valid.length) {
+        MessageBox.warning("Ningún registro cumple validación para MIRO (requiere SUNAT aprobado AP).");
+        return;
+    }
+
+    if (oSplit.invalid.length) {
+        this._confirmSkipInvalid("Reg Factura MIRO", oSplit.invalid, function () {
+            this._postEntregaProceso("MIRO", "", oSplit.valid);
+        }.bind(this));
+    } else {
+        this._postEntregaProceso("MIRO", "", oSplit.valid);
+    }
+},
+
+_postEntregaProceso: function (sTipoProc, sPeriodProc, aRows) {
+    var oODataModel = this._getArticuloModel();
+    var oTable = this.byId("table");
+    var oViewModel = this.getModel("worklistView");
+
+    var oPayload = this._buildEntregaPayload(sTipoProc, sPeriodProc, aRows);
+
+    oTable.setBusy(true);
+
+    oODataModel.create("/EntregaSet", oPayload, {
+        success: function (oData) {
+            oTable.setBusy(false);
+
+            // Actualiza columnas localmente según respuesta del backend
+            this._applyEntregaResponse(oData);
+
+            // Limpia selección + botones
+            if (oTable && oTable.clearSelection) {
+                oTable.clearSelection();
+            }
+            oViewModel.setProperty("/selectedRowsCount", 0);
+            oViewModel.setProperty("/canFacturar", false);
+            oViewModel.setProperty("/canSunat", false);
+            oViewModel.setProperty("/canMiro", false);
+
+            MessageToast.show("Proceso " + sTipoProc + " enviado. Revise mensajes/estado.");
+        }.bind(this),
+        error: function (oError) {
+            oTable.setBusy(false);
+            MessageBox.error(this._formatODataError(oError, "Error al procesar (" + sTipoProc + ") en /EntregaSet."));
+        }.bind(this)
+    });
+},
+
+_buildEntregaPayload: function (sTipoProc, sPeriodProc, aRows) {
+    var oViewModel = this.getModel("worklistView");
+
+    var sCentroVend = oViewModel.getProperty("/selectedCentroSum") || "";
+    var sCentroComp = oViewModel.getProperty("/selectedCentroRecep") || "";
+    var sExtwg = oViewModel.getProperty("/selectedMaterial") || "";
+
+    var oHead = {
+        Fepro: "",
+        CentroVend: sCentroVend,
+        CentroComp: sCentroComp,
+        Extwg: sExtwg,
+        PeriodProc: sPeriodProc || "",
+        TipoProc: sTipoProc
+    };
+
+    var aList = (aRows || []).map(function (r) {
+        var sIdItem = (r.idItem || (String(r.pedido || "") + "_" + String(r.pos || "")));
+        return {
+            IdItem: sIdItem,
+            Ebeln: r.pedido || "",
+            Ebelp: r.pos || "",
+            DocSal643: r.docSal643 || "",
+            Ejercicio643: r.ejercicio643 || "",
+            Posicion643: r.posicion643 || "",
+            Factura: r.factura || "",
+            StatusFact: r.statusFacturacion || "",
+            Referencia: r.referencia || "",
+            StatusEnvSunat: r.statusEnvioSunat || "",
+            DocMiro: r.docMiro || "",
+            StatusMiro: r.statusMiro || "",
+            MsjUltEvento: r.mensajeUltimoEvento || "",
+            EstadoReg: r.estadoReg || ""
+        };
+    });
+
+    // Deep insert según estructura del Word (Head/List/Respuesta)
+    return {
+        Fepro: "",
+        EntregaHeadSet: [oHead],
+        EntregaListSet: aList,
+        EntregaRespuestaSet: []
+    };
+},
+
+_applyEntregaResponse: function (oData) {
+    // Aplica campos retornados por el backend a la tabla (JSONModel "pedidos")
+    var oPedidosModel = this.getModel("pedidos");
+    var aLocal = (oPedidosModel && oPedidosModel.getData) ? (oPedidosModel.getData() || []) : [];
+
+    if (!Array.isArray(aLocal) || !aLocal.length) return;
+
+    var mIndex = {};
+    aLocal.forEach(function (r, idx) {
+        var sId = r && (r.idItem || (String(r.pedido || "") + "_" + String(r.pos || "")));
+        if (sId) mIndex[String(sId)] = idx;
+    });
+
+    var aUpd = [];
+    if (oData && oData.EntregaListSet) {
+        aUpd = oData.EntregaListSet.results || oData.EntregaListSet || [];
+    }
+
+    aUpd.forEach(function (u) {
+        var sId = (u.IdItem != null) ? String(u.IdItem) : "";
+        var idx = mIndex[sId];
+        if (idx == null) return;
+
+        var r = aLocal[idx];
+
+        // Campos que se deben actualizar según TipoProc (pero el backend puede devolverlos todos)
+        if (u.Factura != null) r.factura = u.Factura;
+        if (u.StatusFact != null) r.statusFacturacion = u.StatusFact;
+        if (u.Referencia != null) r.referencia = u.Referencia;
+        if (u.StatusEnvSunat != null) r.statusEnvioSunat = u.StatusEnvSunat;
+        if (u.DocMiro != null) r.docMiro = String(u.DocMiro);
+        if (u.StatusMiro != null) r.statusMiro = u.StatusMiro;
+        if (u.MsjUltEvento != null) r.mensajeUltimoEvento = u.MsjUltEvento;
+        if (u.EstadoReg != null) r.estadoReg = u.EstadoReg;
+    });
+
+    // Mensajes por item (EntregaRespuestaSet)
+    var aResp = [];
+    if (oData && oData.EntregaRespuestaSet) {
+        aResp = oData.EntregaRespuestaSet.results || oData.EntregaRespuestaSet || [];
+    }
+    this._pushProcesoMessages(aResp);
+
+    if (oPedidosModel && oPedidosModel.refresh) {
+        oPedidosModel.refresh(true);
+    }
+},
+
+_pushProcesoMessages: function (aResp) {
+            // Vuelca mensajes al MessageManager (MessagesIndicator)
+            var oMM = sap.ui.getCore().getMessageManager();
+            var aMsgs = [];
+
+            // Usamos el mismo processor que registramos en onInit
+            var oProc = this._oMessageProcessor;
+            if (!oProc) {
+                oProc = new ControlMessageProcessor();
+                Messaging.registerMessageProcessor(oProc);
+                this._oMessageProcessor = oProc;
+            }
+
+            (aResp || []).forEach(function (r) {
+                var sType = (r.TipoMsg === "E") ? MessageType.Error : MessageType.Success;
+                var sTitle = (r.TipoMsg === "E") ? "Error" : "OK";
+                var sText = (r.Mensaje || "");
+                var sId = (r.IdItem != null) ? String(r.IdItem) : "";
+                aMsgs.push(new Message({
+                    message: sTitle + (sId ? (" (" + sId + ")") : ""),
+                    description: sText,
+                    type: sType,
+                    processor: oProc
+                }));
+            });
+
+            // Limpia + agrega
+            try { oMM.removeAllMessages(); } catch (e) { /* ignore */ }
+            if (aMsgs.length) {
+                oMM.addMessages(aMsgs);
+            }
         },
 
         onProcessSelected: function () {
-            var oTable = this.byId("table");
-            var aSelectedIndices = (oTable && oTable.getSelectedIndices) ? oTable.getSelectedIndices() : [];
-            var aSelectedData = (aSelectedIndices || []).map(function (i) {
-                var oCtx = oTable.getContextByIndex(i);
-                return oCtx ? oCtx.getObject() : null;
-            }).filter(Boolean);
-
-            if (!aSelectedData.length) {
-                MessageToast.show("No se han seleccionado registros para procesar.");
-                return;
-            }
-
-            var aMismatches = aSelectedData.filter(function (row) { return row._mismatch; });
-            var that = this;
-
-            function processValidRows(aValidRows, selectedDate) {
-                // TODO (FUERA DE ALCANCE ACTUAL): llamada real al backend para procesamiento
-                var msg = aValidRows.length + " filas válidas serán procesadas";
-                if (selectedDate) {
-                    msg += " con fecha " + selectedDate;
-                }
-                MessageToast.show(msg);
-            }
-
-            function promptForDateAndProcess(aValidRows) {
-                if (that._oDateDialog) {
-                    that._oDateDialog.destroy();
-                }
-                that._oDateDialog = new sap.m.Dialog({
-                    title: "Seleccionar fecha de contabilización",
-                    type: "Message",
-                    content: [
-                        new sap.m.Label({ text: "Por favor seleccione la fecha de contabilización:" }),
-                        new sap.m.DatePicker("datePickerContab", {
-                            valueFormat: "yyyy-MM-dd",
-                            displayFormat: "dd.MM.yyyy",
-                            required: true
-                        })
-                    ],
-                    beginButton: new sap.m.Button({
-                        text: "Aceptar",
-                        type: "Emphasized",
-                        press: function () {
-                            var oDatePicker = sap.ui.getCore().byId("datePickerContab");
-                            var oDate = oDatePicker.getDateValue();
-                            if (!oDate) {
-                                oDatePicker.setValueState("Error");
-                                oDatePicker.setValueStateText("Debe seleccionar una fecha");
-                                return;
-                            }
-                            var yyyy = oDate.getFullYear();
-                            var mm = String(oDate.getMonth() + 1).padStart(2, "0");
-                            var dd = String(oDate.getDate()).padStart(2, "0");
-                            var sDate = yyyy + "-" + mm + "-" + dd;
-                            that._oDateDialog.close();
-                            processValidRows(aValidRows, sDate);
-                        }
-                    }),
-                    endButton: new sap.m.Button({
-                        text: "Cancelar",
-                        press: function () { that._oDateDialog.close(); }
-                    }),
-                    afterClose: function () {
-                        that._oDateDialog.destroy();
-                    }
-                });
-                that._oDateDialog.open();
-            }
-
-            // Always show mismatches dialog if mismatches exist
-            if (aMismatches.length > 0) {
-                if (this._oMismatchDialog) {
-                    this._oMismatchDialog.destroy();
-                }
-                this._oMismatchDialog = new sap.m.Dialog({
-                    title: "Filas con diferencias",
-                    contentWidth: "600px",
-                    type: "Message",
-                    content: [
-                        new sap.m.Text({
-                            text: "Las siguientes filas tienen diferencias y no serán enviadas para su procesamiento.\n¿Desea continuar con las filas válidas o cancelar la acción?",
-                            wrapping: true,
-                            design: "Bold"
-                        }),
-                        new sap.m.Table({
-                            columns: [
-                                new sap.m.Column({ header: new sap.m.Label({ text: "Pedido" }) }),
-                                new sap.m.Column({ header: new sap.m.Label({ text: "Material" }) }),
-                                new sap.m.Column({ header: new sap.m.Label({ text: "Cant. Salida" }) }),
-                                new sap.m.Column({ header: new sap.m.Label({ text: "Cant. Entrega" }) })
-                            ],
-                            items: {
-                                path: "/mismatches",
-                                template: new sap.m.ColumnListItem({
-                                    cells: [
-                                        new sap.m.Text({ text: "{pedido}" }),
-                                        new sap.m.Text({ text: "{material}" }),
-                                        new sap.m.Text({ text: "{cantSal}" }),
-                                        new sap.m.Text({ text: "{cantEnt}" })
-                                    ]
-                                })
-                            }
-                        })
-                    ],
-                    beginButton: new sap.m.Button({
-                        text: "Continuar",
-                        type: "Emphasized",
-                        press: function () {
-                            that._oMismatchDialog.close();
-                            var aValidRows = aSelectedData.filter(function (row) { return !row._mismatch; });
-
-                            var oIconTabBar = that.byId("iconTabBar");
-                            var sKey = oIconTabBar ? oIconTabBar.getSelectedKey() : null;
-
-                            if (sKey === "inicial") {
-                                promptForDateAndProcess(aValidRows);
-                            } else {
-                                processValidRows(aValidRows);
-                            }
-                        }
-                    }),
-                    endButton: new sap.m.Button({
-                        text: "Cancelar",
-                        press: function () { that._oMismatchDialog.close(); }
-                    }),
-                    afterClose: function () {
-                        that._oMismatchDialog.destroy();
-                    }
-                });
-
-                var oMismatchModel = new JSONModel({ mismatches: aMismatches });
-                this._oMismatchDialog.setModel(oMismatchModel);
-                this._oMismatchDialog.open();
-            } else {
-                // No mismatches
-                var oIconTabBar2 = this.byId("iconTabBar");
-                var sKey2 = oIconTabBar2 ? oIconTabBar2.getSelectedKey() : null;
-                if (sKey2 === "inicial") {
-                    promptForDateAndProcess(aSelectedData);
-                } else {
-                    processValidRows(aSelectedData);
-                }
-            }
+            // Compatibilidad: el botón antiguo "Procesar Selección" equivale a Facturar
+            this.onFacturar();
         },
 
         onMessagesButtonPress: function (oEvent) {
