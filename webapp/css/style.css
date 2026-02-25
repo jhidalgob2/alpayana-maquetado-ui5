@@ -40,9 +40,15 @@
   background-color: #fff !important;
 }
 
-/* Ocupa ~90% del alto disponible del content del page */
-.tab90Height {
-  width: 98%;
-  height: 98%;
-  margin: auto; 
+ .tab90Height {
+  width: 100% !important;
+  height: 95% ;
+  margin-top: 1rem;
+  padding-bottom: 3rem;
+
+} 
+/* Solo para EstadoTol cuando el ValueState sea Warning (0) */
+.estadoTolStatus.sapMObjStatusWarning .sapMObjStatusIcon,
+.estadoTolStatus.sapMObjStatusWarning .sapMObjStatusText {
+  color: #F7D100 !important; /* amarillo */
 }

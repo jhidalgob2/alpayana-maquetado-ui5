@@ -39,21 +39,30 @@ sap.ui.define([
 		},
 
 		/**
-		 * Estado de tolerancia para icono/estado
-		 * - 0 o vacío  -> Success (🟢)
-		 * - <= 5       -> Warning (🟡)
-		 * - > 5        -> Error (🔴)
+		 * Estado de tolerancia (según nueva codificación del backend)
+		 * -  1  -> Success (🟢)  Sin diferencia
+		 * -  0  -> Warning (🟡)  Dentro de tolerancia
+		 * - -1  -> Error (🔴)    Fuera de tolerancia
 		 */
 		estadoTolState: function (v) {
 			if (v == null || v === "") {
+				// fallback: si no viene, asumimos "sin diferencia" para no bloquear UI
 				return ValueState.Success;
 			}
 			var n = Number(v);
-			if (isNaN(n) || n === 0) {
+			if (isNaN(n)) {
+				return ValueState.None;
+			}
+			if (n === 1) {
 				return ValueState.Success;
 			}
-			n = Math.abs(n);
-			return (n <= 5) ? ValueState.Warning : ValueState.Error;
+			if (n === 0) {
+				return ValueState.Warning;
+			}
+			if (n === -1) {
+				return ValueState.Error;
+			}
+			return ValueState.None;
 		},
 
 		estadoTolText: function (v) {
@@ -61,11 +70,19 @@ sap.ui.define([
 				return "Sin diferencia";
 			}
 			var n = Number(v);
-			if (isNaN(n) || n === 0) {
+			if (isNaN(n)) {
+				return "";
+			}
+			if (n === 1) {
 				return "Sin diferencia";
 			}
-			n = Math.abs(n);
-			return (n <= 5) ? "Dentro de tolerancia" : "Fuera de tolerancia";
+			if (n === 0) {
+				return "Dentro de tolerancia";
+			}
+			if (n === -1) {
+				return "Fuera de tolerancia";
+			}
+			return "";
 		}
 
 	};

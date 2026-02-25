@@ -48,6 +48,12 @@
                         text="Enviado"
                     />
                     <IconTabFilter
+                        key="reprocesadoSUNAT"
+                        icon="sap-icon://refresh"
+                        iconColor="Neutral"
+                        text="Reprocesado"
+                    />
+                    <IconTabFilter
                         key="registradoMIRO"
                         icon="sap-icon://complete"
                         iconColor="Default"
@@ -94,6 +100,15 @@
                                     press=".onRegistrarSunat"
                                     tooltip="Registrar/Enviar a SUNAT (TipoProc=ENSN)"
                                     visible="{worklistView>/sunatBtnVisible}"
+                                />
+                                <Button
+                                    id="btnRepro"
+                                    text="REPROCESAR"
+                                    icon="sap-icon://refresh"
+                                    enabled="{worklistView>/canRepro}"
+                                    press=".onReprocesarSunat"
+                                    tooltip="Reproceso SUNAT (TipoProc=ERSN)"
+                                    visible="{worklistView>/reproBtnVisible}"
                                 />
                                 <Button
                                     id="btnMiro"
@@ -262,7 +277,7 @@
                             >
                                 <Text text="Dif. Cantidad" />
                                 <t:template>
-                                    <ObjectNumber number="{pedidos>difCantidadCalc}" state="{= ${pedidos>difCantidadCalc} > 1 ? 'Error' : 'None' }" />
+                                    <ObjectNumber number="{pedidos>difCantidadCalc}" state="{= ${pedidos>difCantidadCalc} !== 0 ? 'Error' : 'None' }" />
                                 </t:template>
                             </t:Column>
 
@@ -383,15 +398,19 @@
                                     <Text text="{pedidos>docMiro}" />
                                 </t:template>
                             </t:Column>
-   <t:Column
+                            <t:Column
                                 id="colEstadoTol"
                                 width="12rem"
+                                    hAlign="Center"
+    vAlign="Middle"
                                 sortProperty="estadoTol"
                                 filterProperty="estadoTol"
+                                filterOperator="EQ"
                             >
                                 <Text text="Estado Tolerancia" />
                                 <t:template>
-                                    <ObjectStatus icon="sap-icon://circle-task-2" state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}" />
+                                    <ObjectStatus icon="sap-icon://circle-task-2" state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}" 
+                                        class="estadoTolStatus" />
                                 </t:template>
                             </t:Column>
                             <t:Column
@@ -471,6 +490,7 @@
                                 items="{ path: 'worklistView>/centroRecepOptions' }"
                                 selectedKeys="{worklistView>/selectedCentroRecep}"
                                 showClearIcon="true"
+                                showSelectAll="true"
                             >
                                 <core:Item
                                     key="{worklistView>key}"

@@ -13,6 +13,10 @@ sap.ui.define([
     "sap/m/MessageItem",
     "sap/m/MessageBox",
     "sap/m/MessageToast",
+	"sap/ui/unified/Menu",
+	"sap/ui/unified/MenuItem",
+	"sap/ui/unified/MenuTextFieldItem",
+	"sap/ui/table/library",
     "sap/ui/export/Spreadsheet",
     "sap/ui/export/library"
 ], function (
@@ -30,6 +34,10 @@ sap.ui.define([
     MessageItem,
     MessageBox,
     MessageToast,
+	Menu,
+	MenuItem,
+	MenuTextFieldItem,
+	tableLibrary,
     Spreadsheet,
     exportLibrary
 ) {
@@ -80,11 +88,13 @@ sap.ui.define([
                 facturarBtnVisible: true,
                 sunatBtnVisible: false,
                 miroBtnVisible: false,
+                reproBtnVisible: false,
 
                 // habilitación (según selección + validaciones)
                 canFacturar: false,
                 canSunat: false,
-                canMiro: false
+                canMiro: false,
+                canRepro: false
             });
             this.setModel(oViewModel, "worklistView");
 
@@ -97,6 +107,13 @@ sap.ui.define([
 
             // Load filter options from the real service (articuloModel -> articuloService in manifest)
             this._loadFilterOptions();
+
+			// Add "quick filters" (selectable options) for Estado Tolerancia
+			// NOTE: The standard GridTable column menu is internal and NOT returned by Column#getMenu().
+			// To add items reliably, we set a custom Menu on that specific column (menu aggregation)
+			// and reproduce the standard actions (sort + filter) there.
+			this._setupEstadoTolColumnMenu();
+			this._setupEstadoRegColumnMenu();
 
             // Keep original busy delay after first data update
             var iOriginalBusyDelay = oTable.getBusyIndicatorDelay();
@@ -400,7 +417,10 @@ success: function (oData) {
                 // Extra fields from the entity (not necessarily visible yet)
                 docSal643: (o.DocSal643 == null) ? "" : String(o.DocSal643),
                 docEnt101: (o.DocEnt101 == null) ? "" : String(o.DocEnt101),
-                estadoTol: this._toNumber(o.EstadoTol),
+ejercicio643: (o.Ejercicio643 == null) ? "" : String(o.Ejercicio643),
+posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
+				// EstadoTol puede venir como 1/0/-1. Si viene vacío, lo dejamos vacío (formatter lo interpreta como 🟢).
+				estadoTol: (o.EstadoTol == null || o.EstadoTol === "") ? "" : Number(o.EstadoTol),
                 estadoReg: o.EstadoReg || "",
                 budat: this._formatODataDate(o.Budat),
                 extwg: o.Extwg || "",
@@ -474,6 +494,275 @@ success: function (oData) {
                 }
             });
         },
+
+		/* =========================================================== */
+		/*  Column Menu enhancements                                   */
+		/* =========================================================== */
+
+		/**
+		 * Why your items didn't show up:
+		 * - The menu you see (Sort/Filter/Columns) is the INTERNAL ColumnMenu created by sap.ui.table.Table.
+		 * - That internal menu is NOT exposed via Column#getMenu().
+		 *
+		 * To add selectable "suggestions" reliably (without hacking private APIs), we set a CUSTOM
+		 * sap.ui.unified.Menu on this specific column (menu aggregation) and reproduce the standard
+		 * actions (Sort Asc/Desc, Filter, Columns submenu) plus our quick filters.
+		 */
+		_setupEstadoTolColumnMenu: function () {
+			var oCol = this.byId("colEstadoTol");
+			var oTable = this.byId("table");
+			if (!oCol || !oTable || !oCol.setMenu) {
+				return;
+			}
+
+			// If a custom menu is already set, do nothing.
+			if (oCol.getMenu && oCol.getMenu()) {
+				return;
+			}
+
+			var that = this;
+			var oMenu = new Menu(this.getView().createId("estadoTolMenu"));
+
+			// 1) Standard actions (replicated)
+			oMenu.addItem(new MenuItem({
+				text: "Sort Ascending",
+				icon: "sap-icon://sort-ascending",
+				select: function () {
+					try { oTable.sort(oCol, tableLibrary.SortOrder.Ascending); } catch (e) { /* ignore */ }
+				}
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "Sort Descending",
+				icon: "sap-icon://sort-descending",
+				select: function () {
+					try { oTable.sort(oCol, tableLibrary.SortOrder.Descending); } catch (e) { /* ignore */ }
+				}
+			}));
+
+			var oFilterItem = new MenuTextFieldItem({
+				label: "Filter",
+				icon: "sap-icon://filter",
+				value: (oCol.getFilterValue ? (oCol.getFilterValue() || "") : ""),
+				select: function () {
+					var sVal = oFilterItem.getValue();
+					try {
+						oCol.setFilterValue(sVal);
+						oTable.filter(oCol, sVal);
+					} catch (e) { /* ignore */ }
+				}
+			});
+			oMenu.addItem(oFilterItem);
+
+			// Keep the filter text field in sync whenever the menu opens
+			if (oMenu.attachBeforeOpen && oCol.getFilterValue) {
+				oMenu.attachBeforeOpen(function () {
+					try { oFilterItem.setValue(oCol.getFilterValue() || ""); } catch (e) { /* ignore */ }
+				});
+			}
+
+			// 2) Quick filters (EstadoTol: 🟢=1, 🟡=0, 🔴=-1)
+			oMenu.addItem(new MenuItem({
+				text: "Sugerencias",
+				startsSection: true,
+				enabled: false
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "🟢 Sin diferencia",
+				select: function () { that._applyEstadoTolQuickFilter(1); }
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "🟡 Dentro de tolerancia",
+				select: function () { that._applyEstadoTolQuickFilter(0); }
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "🔴 Fuera de tolerancia",
+				select: function () { that._applyEstadoTolQuickFilter(-1); }
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "Quitar filtro",
+				select: function () { that._applyEstadoTolQuickFilter(null); }
+			}));
+
+			// 3) Columns submenu (best-effort)
+			oMenu.addItem(new MenuItem({
+				text: "Columns",
+				startsSection: true,
+				submenu: this._buildColumnsSubMenu(oTable)
+			}));
+
+			oCol.setMenu(oMenu);
+		},
+
+		_buildColumnsSubMenu: function (oTable) {
+			var oSub = new Menu();
+			if (!oTable || !oTable.getColumns) {
+				return oSub;
+			}
+
+			var aCols = oTable.getColumns() || [];
+			aCols.forEach(function (oCol) {
+				if (!oCol) return;
+
+				var sText = "";
+				try {
+					var oLbl = oCol.getLabel && oCol.getLabel();
+					if (oLbl && oLbl.getText) {
+						sText = oLbl.getText();
+					}
+				} catch (e) { /* ignore */ }
+				if (!sText) {
+					sText = (oCol.getId && oCol.getId()) ? oCol.getId() : "Column";
+				}
+
+				var oItem = new MenuItem({
+					text: sText,
+					icon: (oCol.getVisible && oCol.getVisible()) ? "sap-icon://accept" : "",
+					select: function () {
+						try {
+							var bNew = !(oCol.getVisible && oCol.getVisible());
+							oCol.setVisible(bNew);
+							oItem.setIcon(bNew ? "sap-icon://accept" : "");
+						} catch (e) { /* ignore */ }
+					}
+				});
+
+				oSub.addItem(oItem);
+			});
+			return oSub;
+		},
+
+		_applyEstadoTolQuickFilter: function (vCode) {
+			var oTable = this.byId("table");
+			var oCol = this.byId("colEstadoTol");
+			if (!oTable || !oCol || !oTable.filter) {
+				return;
+			}
+
+			var sVal = (vCode == null) ? "" : String(vCode);
+			try {
+				oCol.setFilterValue(sVal);
+				// Table#filter aplica la lógica estándar de filtrado por columna
+				oTable.filter(oCol, sVal);
+			} catch (e) {
+				// ignore
+			}
+		},
+
+		_setupEstadoRegColumnMenu: function () {
+			var oCol = this.byId("colEstadoReg");
+			var oTable = this.byId("table");
+			if (!oCol || !oTable || !oCol.setMenu) {
+				return;
+			}
+
+			// If a custom menu is already set, do nothing.
+			if (oCol.getMenu && oCol.getMenu()) {
+				return;
+			}
+
+			var that = this;
+			var oMenu = new Menu(this.getView().createId("estadoRegMenu"));
+
+			// 1) Standard actions (replicated)
+			oMenu.addItem(new MenuItem({
+				text: "Sort Ascending",
+				icon: "sap-icon://sort-ascending",
+				select: function () {
+					try { oTable.sort(oCol, tableLibrary.SortOrder.Ascending); } catch (e) { /* ignore */ }
+				}
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "Sort Descending",
+				icon: "sap-icon://sort-descending",
+				select: function () {
+					try { oTable.sort(oCol, tableLibrary.SortOrder.Descending); } catch (e) { /* ignore */ }
+				}
+			}));
+
+			var oFilterItem = new MenuTextFieldItem({
+				label: "Filter",
+				icon: "sap-icon://filter",
+				value: (oCol.getFilterValue ? (oCol.getFilterValue() || "") : ""),
+				select: function () {
+					var sVal = oFilterItem.getValue();
+					try {
+						oCol.setFilterValue(sVal);
+						oTable.filter(oCol, sVal);
+					} catch (e) { /* ignore */ }
+				}
+			});
+			oMenu.addItem(oFilterItem);
+
+			// Keep the filter text field in sync whenever the menu opens
+			if (oMenu.attachBeforeOpen && oCol.getFilterValue) {
+				oMenu.attachBeforeOpen(function () {
+					try { oFilterItem.setValue(oCol.getFilterValue() || ""); } catch (e) { /* ignore */ }
+				});
+			}
+
+			// 2) Quick filters (EstadoReg)
+			oMenu.addItem(new MenuItem({
+				text: "Sugerencias",
+				startsSection: true,
+				enabled: false
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "En proceso",
+				select: function () { that._applyEstadoRegQuickFilter("En proceso"); }
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "No procesado",
+				select: function () { that._applyEstadoRegQuickFilter("No procesado"); }
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "Procesado",
+				select: function () { that._applyEstadoRegQuickFilter("Procesado"); }
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "Quitar filtro",
+				select: function () { that._applyEstadoRegQuickFilter(null); }
+			}));
+
+			// 3) Columns submenu (best-effort)
+			oMenu.addItem(new MenuItem({
+				text: "Columns",
+				startsSection: true,
+				submenu: this._buildColumnsSubMenu(oTable)
+			}));
+
+			oCol.setMenu(oMenu);
+		},
+
+		_applyEstadoRegQuickFilter: function (sValue) {
+			var oTable = this.byId("table");
+			var oCol = this.byId("colEstadoReg");
+			if (!oTable || !oCol || !oTable.filter) {
+				return;
+			}
+
+			var sVal = (sValue == null) ? "" : String(sValue);
+			try {
+				oCol.setFilterValue(sVal);
+				oTable.filter(oCol, sVal);
+			} catch (e) {
+				// ignore
+			}
+		},
+
+		_isSunatApproved: function (sStatus) {
+			var s = (sStatus == null) ? "" : String(sStatus);
+			s = s.trim().toUpperCase();
+			return s === "AP" || s.indexOf("AP") === 0 || s.indexOf(" AP") > -1 || s.indexOf("APROB") > -1;
+		},
+
+		_makeSunatApprovedFilter: function (bApproved) {
+			var oF = new Filter("statusEnvioSunat", FilterOperator.EQ, "AP");
+			oF.fnTest = function (v) {
+				var b = this._isSunatApproved(v);
+				return bApproved ? b : !b;
+			}.bind(this);
+			return oF;
+		},
 
         /* =========================================================== */
         /*  FilterBar handlers (real backend read)                     */
@@ -572,11 +861,15 @@ success: function (oData) {
         },
 
         onExport: function () {
-            var aData = this.getModel("pedidos").getData() || [];
-            if (!Array.isArray(aData) || aData.length === 0) {
+			var aAll = this.getModel("pedidos").getData() || [];
+			if (!Array.isArray(aAll) || aAll.length === 0) {
                 MessageToast.show("No hay datos para exportar.");
                 return;
             }
+
+			// Nuevo comportamiento: si hay filas seleccionadas, exportar solo esas; si no, exportar todo
+			var aSelected = this._getSelectedRowsData();
+			var aData = (Array.isArray(aSelected) && aSelected.length) ? aSelected : aAll;
 
             var EdmType = exportLibrary.EdmType;
 
@@ -603,7 +896,7 @@ success: function (oData) {
                 { label: "Mensaje Últ. Evento", property: "mensajeUltimoEvento", type: EdmType.String }
             ];
 
-            var oSheet = new Spreadsheet({
+			var oSheet = new Spreadsheet({
                 workbook: { columns: aColumns },
                 dataSource: aData,
                 fileName: "Monitor_Intercompany.xlsx"
@@ -721,6 +1014,7 @@ success: function (oData) {
                 oViewModel.setProperty("/facturarBtnVisible", true);
                 oViewModel.setProperty("/sunatBtnVisible", false);
                 oViewModel.setProperty("/miroBtnVisible", false);
+                oViewModel.setProperty("/reproBtnVisible", false);
 
                 // Sin filtro en inicial (todos los estados)
                 aFilters = [];
@@ -735,12 +1029,13 @@ success: function (oData) {
                 oViewModel.setProperty("/facturarBtnVisible", false);
 oViewModel.setProperty("/sunatBtnVisible", true);
 oViewModel.setProperty("/miroBtnVisible", false);
-
-                // Facturado SAP: con factura y sin referencia
-                aFilters = [
-                    new Filter("factura", FilterOperator.NE, ""),
-                    new Filter("referencia", FilterOperator.EQ, "")
-                ];
+oViewModel.setProperty("/reproBtnVisible", false);
+// Facturado SAP: con factura, SIN envío SUNAT (StatusEnvSunat vacío) y sin Doc MIRO
+aFilters = [
+    new Filter("factura", FilterOperator.NE, ""),
+    new Filter("docMiro", FilterOperator.EQ, ""),
+    new Filter("statusEnvioSunat", FilterOperator.EQ, "")
+];
             } else if (sKey === "enviadoSUNAT") {
                 oViewModel.setProperty("/colStatusFacturacionVisible", true);
                 oViewModel.setProperty("/colFacturaVisible", true);
@@ -752,12 +1047,31 @@ oViewModel.setProperty("/miroBtnVisible", false);
                 oViewModel.setProperty("/facturarBtnVisible", false);
 oViewModel.setProperty("/sunatBtnVisible", false);
 oViewModel.setProperty("/miroBtnVisible", true);
+oViewModel.setProperty("/reproBtnVisible", false);
+// Enviado SUNAT: Status SUNAT = AP y aún sin Doc MIRO
+aFilters = [
+    new Filter("docMiro", FilterOperator.EQ, ""),
+    this._makeSunatApprovedFilter(true)
+];
 
-                // Enviado SUNAT: con referencia y aún sin Doc MIRO
-                aFilters = [
-                    new Filter("referencia", FilterOperator.NE, ""),
-                    new Filter("docMiro", FilterOperator.EQ, "")
-                ];
+            } else if (sKey === "reprocesadoSUNAT") {
+                oViewModel.setProperty("/colStatusFacturacionVisible", true);
+                oViewModel.setProperty("/colFacturaVisible", true);
+                oViewModel.setProperty("/colStatusEnvioSunatVisible", true);
+                oViewModel.setProperty("/colReferenciaVisible", true);
+                oViewModel.setProperty("/colStatusMIROVisible", false);
+                oViewModel.setProperty("/colDocMIROVisible", false);
+                oViewModel.setProperty("/tableSelectionMode", "MultiToggle");
+                oViewModel.setProperty("/facturarBtnVisible", false);
+oViewModel.setProperty("/sunatBtnVisible", false);
+oViewModel.setProperty("/miroBtnVisible", false);
+oViewModel.setProperty("/reproBtnVisible", true);
+// Reprocesado: Status SUNAT != AP (y no vacío), aún sin Doc MIRO
+aFilters = [
+    new Filter("docMiro", FilterOperator.EQ, ""),
+    new Filter("statusEnvioSunat", FilterOperator.NE, ""),
+    this._makeSunatApprovedFilter(false)
+];
             } else if (sKey === "registradoMIRO") {
                 oViewModel.setProperty("/colStatusFacturacionVisible", true);
                 oViewModel.setProperty("/colFacturaVisible", true);
@@ -769,6 +1083,7 @@ oViewModel.setProperty("/miroBtnVisible", true);
                 oViewModel.setProperty("/facturarBtnVisible", false);
 oViewModel.setProperty("/sunatBtnVisible", false);
 oViewModel.setProperty("/miroBtnVisible", false);
+oViewModel.setProperty("/reproBtnVisible", false);
 
                 // Registrado MIRO: con Doc MIRO
                 aFilters = [
@@ -785,6 +1100,7 @@ oViewModel.setProperty("/selectedRowsCount", 0);
 oViewModel.setProperty("/canFacturar", false);
 oViewModel.setProperty("/canSunat", false);
 oViewModel.setProperty("/canMiro", false);
+oViewModel.setProperty("/canRepro", false);
 
 oBinding.filter(aFilters);
         },
@@ -803,6 +1119,7 @@ oBinding.filter(aFilters);
             oViewModel.setProperty("/canFacturar", oFlags.canFacturar);
             oViewModel.setProperty("/canSunat", oFlags.canSunat);
             oViewModel.setProperty("/canMiro", oFlags.canMiro);
+            oViewModel.setProperty("/canRepro", oFlags.canRepro);
         },
 
         /* =========================================================== */
@@ -823,7 +1140,7 @@ _getEligibilityFlagsForTab: function (sKey, aSelectedRows) {
     // Devuelve "puede" según la pestaña actual y validaciones mínimas.
     var fnAny = function (a, fn) { return Array.isArray(a) && a.some(fn); };
 
-    var canFact = false, canSunat = false, canMiro = false;
+    var canFact = false, canSunat = false, canMiro = false, canRepro = false;
 
     if (sKey === "inicial") {
         canFact = fnAny(aSelectedRows, this._isEligibleFacturar.bind(this));
@@ -833,17 +1150,22 @@ _getEligibilityFlagsForTab: function (sKey, aSelectedRows) {
         canSunat = fnAny(aSelectedRows, this._isEligibleSunat.bind(this));
     } else if (sKey === "enviadoSUNAT") {
         canMiro = fnAny(aSelectedRows, this._isEligibleMiro.bind(this));
+    } else if (sKey === "reprocesadoSUNAT") {
+        canRepro = fnAny(aSelectedRows, this._isEligibleRepro.bind(this));
     }
-    return { canFacturar: canFact, canSunat: canSunat, canMiro: canMiro };
+    return { canFacturar: canFact, canSunat: canSunat, canMiro: canMiro, canRepro: canRepro };
 },
 
 _isEligibleFacturar: function (row) {
-    // Reglas clave del Word: sin diferencia de cantidad y dentro de tolerancia (<=5) para pasar a facturación
-    // + no debe estar ya facturado
+    // Nuevo código de tolerancia:
+    //  1 = Sin diferencia, 0 = Dentro de tolerancia, -1 = Fuera de tolerancia
+    // Para facturar: dif. cantidad = 0, NO facturado, y tolerancia NO debe ser -1.
     var nDifCant = Number(row.difCantidadCalc || 0);
-    var nTol = Number(row.estadoTol || 0);
+    var vTol = (row && row.estadoTol != null) ? row.estadoTol : "";
+    var nTol = (vTol === "") ? 1 : Number(vTol);
+    var bTolOk = (nTol === 1 || nTol === 0);
     var sFactura = (row.factura || "").trim();
-    return !sFactura && nDifCant === 0 && nTol <= 5;
+    return !sFactura && nDifCant === 0 && bTolOk;
 },
 
 _isEligibleSunat: function (row) {
@@ -852,7 +1174,7 @@ _isEligibleSunat: function (row) {
     var sRef = (row.referencia || "").trim();
     var sStatusSunat = (row.statusEnvioSunat || "").trim();
     // Si ya tiene referencia o ya está AP, evitamos re-enviar desde este botón
-    var bYaAprobado = (sStatusSunat.indexOf("AP") === 0) || (sStatusSunat.indexOf(" AP") > -1) || (sStatusSunat.indexOf("Aprob") > -1);
+    var bYaAprobado = this._isSunatApproved(sStatusSunat);
     return !!sFactura && !sRef && !bYaAprobado;
 },
 
@@ -861,13 +1183,25 @@ _isEligibleMiro: function (row) {
     var sFactura = (row.factura || "").trim();
     var sDocMiro = (row.docMiro || "").trim();
     var sStatusSunat = (row.statusEnvioSunat || "").trim();
-    var bAP = (sStatusSunat.indexOf("AP") === 0) || (sStatusSunat.indexOf(" AP") > -1);
-    // además: sin dif cantidad + dentro tolerancia (para no romper el flujo)
+    var bAP = this._isSunatApproved(sStatusSunat);
+    // además: sin dif cantidad + tolerancia no debe ser -1
     var nDifCant = Number(row.difCantidadCalc || 0);
-    var nTol = Number(row.estadoTol || 0);
-    return !!sFactura && !sDocMiro && bAP && nDifCant === 0 && nTol <= 5;
+    var vTol = (row && row.estadoTol != null) ? row.estadoTol : "";
+    var nTol = (vTol === "") ? 1 : Number(vTol);
+    var bTolOk = (nTol === 1 || nTol === 0);
+    return !!sFactura && !sDocMiro && bAP && nDifCant === 0 && bTolOk;
 },
 
+
+_isEligibleRepro: function (row) {
+    // REPROCESO SUNAT (TipoProc = ERSN)
+    // Requiere: Factura, NO Doc MIRO, Status SUNAT no vacío y distinto a AP
+    var sFactura = (row.factura || "").trim();
+    var sDocMiro = (row.docMiro || "").trim();
+    var sStatusSunat = (row.statusEnvioSunat || "").trim();
+    var bHasStatus = !!sStatusSunat;
+    return !!sFactura && !sDocMiro && bHasStatus && !this._isSunatApproved(sStatusSunat);
+},
 _splitValidInvalid: function (sTipoProc, aRows) {
     var aValid = [];
     var aInvalid = [];
@@ -876,6 +1210,7 @@ _splitValidInvalid: function (sTipoProc, aRows) {
     if (sTipoProc === "FACT") fnElig = this._isEligibleFacturar.bind(this);
     if (sTipoProc === "ENSN") fnElig = this._isEligibleSunat.bind(this);
     if (sTipoProc === "MIRO") fnElig = this._isEligibleMiro.bind(this);
+    if (sTipoProc === "ERSN") fnElig = this._isEligibleRepro.bind(this);
 
     (aRows || []).forEach(function (r) {
         if (!r) return;
@@ -899,7 +1234,9 @@ _splitValidInvalid: function (sTipoProc, aRows) {
 _getInvalidReason: function (sTipoProc, r) {
     if (!r) return "Registro inválido";
     var nDifCant = Number(r.difCantidadCalc || 0);
-    var nTol = Number(r.estadoTol || 0);
+	var vTol = (r && r.estadoTol != null) ? r.estadoTol : "";
+	var nTol = (vTol === "") ? 1 : Number(vTol);
+    var bTolOk = (nTol === 1 || nTol === 0);
     var sFactura = (r.factura || "").trim();
     var sRef = (r.referencia || "").trim();
     var sDocMiro = (r.docMiro || "").trim();
@@ -908,22 +1245,30 @@ _getInvalidReason: function (sTipoProc, r) {
     if (sTipoProc === "FACT") {
         if (sFactura) return "Ya tiene factura";
         if (nDifCant !== 0) return "Dif. cantidad ≠ 0";
-        if (nTol > 5) return "Fuera de tolerancia (> 5)";
+        if (!bTolOk) return "Fuera de tolerancia";
         return "No cumple validaciones de facturación";
     }
     if (sTipoProc === "ENSN") {
         if (!sFactura) return "Sin factura";
         if (sRef) return "Ya tiene referencia";
-        if (sStatusSunat.indexOf("AP") === 0) return "SUNAT ya aprobado (AP)";
+        if (this._isSunatApproved(sStatusSunat)) return "SUNAT ya aprobado (AP)";
         return "No cumple validaciones de SUNAT";
     }
     if (sTipoProc === "MIRO") {
         if (!sFactura) return "Sin factura";
         if (sDocMiro) return "MIRO ya registrado";
-        if (!(sStatusSunat.indexOf("AP") === 0 || sStatusSunat.indexOf(" AP") > -1)) return "SUNAT no aprobado (AP)";
+        if (!this._isSunatApproved(sStatusSunat)) return "SUNAT no aprobado (AP)";
         if (nDifCant !== 0) return "Dif. cantidad ≠ 0";
-        if (nTol > 5) return "Fuera de tolerancia (> 5)";
+        if (!bTolOk) return "Fuera de tolerancia";
         return "No cumple validaciones de MIRO";
+    }
+
+    if (sTipoProc === "ERSN") {
+        if (!sFactura) return "Sin factura";
+        if (sDocMiro) return "MIRO ya registrado";
+        if (!sStatusSunat) return "Sin estado SUNAT";
+        if (this._isSunatApproved(sStatusSunat)) return "SUNAT ya aprobado (AP)";
+        return "No cumple validaciones de reproceso";
     }
     return "Registro inválido";
 },
@@ -960,7 +1305,7 @@ onFacturar: function () {
 
     var oSplit = this._splitValidInvalid("FACT", aSelected);
     if (!oSplit.valid.length) {
-        MessageBox.warning("Ningún registro cumple validación para FACTURAR (sin dif. cantidad y dentro de tolerancia <= 5).");
+        MessageBox.warning("Ningún registro cumple validación para FACTURAR (sin dif. cantidad y tolerancia válida: 🟢/🟡).");
         return;
     }
 
@@ -1058,6 +1403,29 @@ onRegistrarSunat: function () {
     }
 },
 
+
+onReprocesarSunat: function () {
+    // REPROCESO SUNAT (TipoProc=ERSN)
+    var aSelected = this._getSelectedRowsData();
+    if (!aSelected.length) {
+        MessageToast.show("Seleccione al menos un registro.");
+        return;
+    }
+
+    var oSplit = this._splitValidInvalid("ERSN", aSelected);
+    if (!oSplit.valid.length) {
+        MessageBox.warning("Ningún registro cumple validación para REPROCESAR (requiere Status SUNAT no vacío y != AP).");
+        return;
+    }
+
+    if (oSplit.invalid.length) {
+        this._confirmSkipInvalid("REPROCESAR", oSplit.invalid, function () {
+            this._postEntregaProceso("ERSN", "", oSplit.valid);
+        }.bind(this));
+    } else {
+        this._postEntregaProceso("ERSN", "", oSplit.valid);
+    }
+},
 onRegistrarMiro: function () {
     // Reg Factura MIRO (TipoProc=MIRO)
     var aSelected = this._getSelectedRowsData();
@@ -1105,6 +1473,7 @@ _postEntregaProceso: function (sTipoProc, sPeriodProc, aRows) {
             oViewModel.setProperty("/canFacturar", false);
             oViewModel.setProperty("/canSunat", false);
             oViewModel.setProperty("/canMiro", false);
+oViewModel.setProperty("/canRepro", false);
 
             MessageToast.show("Proceso " + sTipoProc + " enviado. Revise mensajes/estado.");
         }.bind(this),
