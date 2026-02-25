@@ -125,7 +125,7 @@
 
                             <t:Column
                                 id="colPedido"
-                                width="6rem"
+                                width="8rem"
                                 sortProperty="pedido"
                                 filterProperty="pedido"
                             >
@@ -162,6 +162,30 @@
                                 <Text text="Tipo Retención" />
                                 <t:template>
                                     <Text text="{pedidos>tipoRetencion}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colDocSal643"
+                                width="8rem"
+                                sortProperty="docSal643"
+                                filterProperty="docSal643"
+                            >
+                                <Text text="DocSal643" />
+                                <t:template>
+                                    <Text text="{pedidos>docSal643}" />
+                                </t:template>
+                            </t:Column>
+
+                            <t:Column
+                                id="colDocEnt101"
+                                width="8rem"
+                                sortProperty="docEnt101"
+                                filterProperty="docEnt101"
+                            >
+                                <Text text="DocEnt101" />
+                                <t:template>
+                                    <Text text="{pedidos>docEnt101}" />
                                 </t:template>
                             </t:Column>
 
@@ -236,7 +260,7 @@
                             >
                                 <Text text="Dif. Cantidad" />
                                 <t:template>
-                                    <ObjectNumber number="{pedidos>difCantidadCalc}" />
+                                    <ObjectNumber number="{pedidos>difCantidadCalc}" state="{= ${pedidos>difCantidadCalc} > 1 ? 'Error' : 'None' }" />
                                 </t:template>
                             </t:Column>
 
@@ -365,11 +389,7 @@
                             >
                                 <Text text="Estado Tolerancia" />
                                 <t:template>
-                                    <ObjectStatus
-                                        icon="sap-icon://circle-task"
-                                        state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}"
-                                        text="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolText'}"
-                                    />
+                                    <ObjectStatus icon="sap-icon://circle-task" state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}" />
                                 </t:template>
                             </t:Column>
                             <t:Column
@@ -383,6 +403,19 @@
                                     <Text text="{pedidos>mensajeUltimoEvento}" />
                                 </t:template>
                             </t:Column>
+
+                            <t:Column
+                                id="colEstadoReg"
+                                width="12rem"
+                                sortProperty="estadoReg"
+                                filterProperty="estadoReg"
+                            >
+                                <Text text="Estado Registro" />
+                                <t:template>
+                                    <Text text="{pedidos>estadoReg}" />
+                                </t:template>
+                            </t:Column>
+
                                         
                         </t:columns>
                     </t:Table>
@@ -428,18 +461,18 @@
                         visibleInFilterBar="true"
                     >
                         <fb:control>
-                            <ComboBox
+                            <MultiComboBox
                                 id="selectCentroRecep"
                                 width="10rem"
                                 items="{ path: 'worklistView>/centroRecepOptions' }"
-                                selectedKey="{worklistView>/selectedCentroRecep}"
+                                selectedKeys="{worklistView>/selectedCentroRecep}"
                                 showClearIcon="true"
                             >
                                 <core:Item
                                     key="{worklistView>key}"
                                     text="{worklistView>text}"
                                 />
-                            </ComboBox>
+                            </MultiComboBox>
                         </fb:control>
                     </fb:FilterGroupItem>
 

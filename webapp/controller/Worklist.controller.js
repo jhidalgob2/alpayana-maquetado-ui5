@@ -66,7 +66,7 @@ sap.ui.define([
 
                 // Selected filters
                 selectedCentroSum: "",
-                selectedCentroRecep: "",
+                selectedCentroRecep: [],
                 selectedMaterial: "",
 
                 // Table / toolbar state
@@ -76,8 +76,8 @@ sap.ui.define([
 
                 // 3 procesos (botones)
                 facturarBtnVisible: true,
-                sunatBtnVisible: true,
-                miroBtnVisible: true,
+                sunatBtnVisible: false,
+                miroBtnVisible: false,
 
                 // habilitación (según selección + validaciones)
                 canFacturar: false,
@@ -180,7 +180,7 @@ success: function (oData) {
 
         // (Opcional) preseleccionar el dummy para que puedas probar sin tocar nada más
         if (!oViewModel.getProperty("/selectedCentroRecep")) {
-            oViewModel.setProperty("/selectedCentroRecep", "000000000001");
+            oViewModel.setProperty("/selectedCentroRecep", []);
         }
     }
 
@@ -461,7 +461,8 @@ success: function (oData) {
             var oViewModel = this.getModel("worklistView");
 
             var sCentroVend = oViewModel.getProperty("/selectedCentroSum");
-            var sCentroComp = oViewModel.getProperty("/selectedCentroRecep");
+            var vCentroComp = oViewModel.getProperty("/selectedCentroRecep");
+            var aCentroComp = Array.isArray(vCentroComp) ? vCentroComp : (vCentroComp ? [vCentroComp] : []);
             var sGrupoMat = oViewModel.getProperty("/selectedMaterial");
 
             var oDateFrom = oView.byId("dateRangeEntrega").getDateValue();
@@ -476,7 +477,7 @@ success: function (oData) {
                 aMissing.push("Centro vendedor");
                 this.byId("selectCentroSum").setValueState("Error");
             }
-            if (!sCentroComp) {
+            if (!aCentroComp.length) {
                 aMissing.push("Centro comprador");
                 this.byId("selectCentroRecep").setValueState("Error");
             }
@@ -498,9 +499,13 @@ success: function (oData) {
             var oFrom = new Date(oDateFrom.getFullYear(), oDateFrom.getMonth(), oDateFrom.getDate(), 0, 0, 0);
             var oTo = new Date(oDateTo.getFullYear(), oDateTo.getMonth(), oDateTo.getDate(), 23, 59, 59);
 
-      var aFilters = [
+      var oCentroCompFilter = (aCentroComp.length === 1)
+                ? new Filter("CentroComp", FilterOperator.EQ, aCentroComp[0])
+                : new Filter({ filters: aCentroComp.map(function (k) { return new Filter("CentroComp", FilterOperator.EQ, k); }), and: false });
+
+            var aFilters = [
                 new Filter("CentroVend", FilterOperator.EQ, sCentroVend),
-                new Filter("CentroComp", FilterOperator.EQ, sCentroComp),
+                oCentroCompFilter,
                 new Filter("Extwg", FilterOperator.EQ, sGrupoMat),
                 new Filter("Budat", FilterOperator.BT, oFrom, oTo)
             ];
@@ -512,7 +517,7 @@ success: function (oData) {
         onFilterBarReset: function () {
             var oViewModel = this.getModel("worklistView");
             oViewModel.setProperty("/selectedCentroSum", "");
-            oViewModel.setProperty("/selectedCentroRecep", "");
+            oViewModel.setProperty("/selectedCentroRecep", []);
             oViewModel.setProperty("/selectedMaterial", "");
             oViewModel.setProperty("/selectedRowsCount", 0);
 
@@ -553,8 +558,7 @@ success: function (oData) {
                 { label: "Dif. Cantidad", property: "difCantidadCalc", type: EdmType.Number },
                 { label: "Importe Sal", property: "precioSal", type: EdmType.Number },
                 { label: "Importe Ent", property: "precioEnt", type: EdmType.Number },
-                { label: "Dif. Importe", property: "difImporteCalc", type: EdmType.Number },
-                { label: "Status Fact.", property: "statusFacturacion", type: EdmType.String },
+                                { label: "Status Fact.", property: "statusFacturacion", type: EdmType.String },
                 { label: "Factura", property: "factura", type: EdmType.String },
                 { label: "Status SUNAT", property: "statusEnvioSunat", type: EdmType.String },
                 { label: "Referencia", property: "referencia", type: EdmType.String },
@@ -679,8 +683,8 @@ success: function (oData) {
 
                 // Mostrar los 3 botones; se habilitan por selección + validación
                 oViewModel.setProperty("/facturarBtnVisible", true);
-                oViewModel.setProperty("/sunatBtnVisible", true);
-                oViewModel.setProperty("/miroBtnVisible", true);
+                oViewModel.setProperty("/sunatBtnVisible", false);
+                oViewModel.setProperty("/miroBtnVisible", false);
 
                 // Sin filtro en inicial (todos los estados)
                 aFilters = [];
@@ -1055,7 +1059,7 @@ _postEntregaProceso: function (sTipoProc, sPeriodProc, aRows) {
             oTable.setBusy(false);
 
             // Actualiza columnas localmente según respuesta del backend
-            this._applyEntregaResponse(oData);
+            this._applyEntregaResponse(oData, sTipoProc);
 
             // Limpia selección + botones
             if (oTable && oTable.clearSelection) {
@@ -1089,7 +1093,8 @@ _buildEntregaPayload: function (sTipoProc, sPeriodProc, aRows) {
     } catch (e) { /* ignore */ }
 
     var sCentroVend = oViewModel.getProperty("/selectedCentroSum") || "";
-    var sCentroComp = oViewModel.getProperty("/selectedCentroRecep") || "";
+    var vCentroCompSel = oViewModel.getProperty("/selectedCentroRecep");
+    var sCentroCompFirst = Array.isArray(vCentroCompSel) ? (vCentroCompSel[0] || "") : (vCentroCompSel || "");
     var sExtwg = oViewModel.getProperty("/selectedMaterial") || "";
 
     var oHead = {
@@ -1117,7 +1122,8 @@ _buildEntregaPayload: function (sTipoProc, sPeriodProc, aRows) {
             DocSal643: r.docSal643 || "",
             Ejercicio643: r.ejercicio643 || "",
             Posicion643: r.posicion643 || "",
-            CentroComp: sCentroComp,
+            Entrega: r.entrega || "",
+            CentroComp: r.centroRecep || sCentroCompFirst,
             Factura: r.factura || "",
             StatusFact: r.statusFacturacion || "",
             Referencia: r.referencia || "",
@@ -1138,7 +1144,7 @@ _buildEntregaPayload: function (sTipoProc, sPeriodProc, aRows) {
     };
 },
 
-_applyEntregaResponse: function (oData) {
+_applyEntregaResponse: function (oData, sTipoProc) {
     // Aplica campos retornados por el backend a la tabla (JSONModel "pedidos")
     var oPedidosModel = this.getModel("pedidos");
     var aLocal = (oPedidosModel && oPedidosModel.getData) ? (oPedidosModel.getData() || []) : [];
@@ -1159,6 +1165,17 @@ _applyEntregaResponse: function (oData) {
     aUpd.forEach(function (u) {
         var sId = (u.IdItem != null) ? String(u.IdItem) : "";
         var idx = mIndex[sId];
+
+        // Fallback: si el backend genera IdItem distinto al enviado (p.ej. '00001'),
+        // mapeamos por clave de negocio EBELN+EBELP.
+        if (idx == null) {
+            var sEbeln = (u.Ebeln != null) ? String(u.Ebeln) : "";
+            var sEbelp = (u.Ebelp != null) ? String(u.Ebelp) : "";
+            if (sEbeln || sEbelp) {
+                var sKey2 = sEbeln + "_" + sEbelp;
+                idx = mIndex[sKey2];
+            }
+        }
         if (idx == null) return;
 
         var r = aLocal[idx];
@@ -1179,15 +1196,20 @@ _applyEntregaResponse: function (oData) {
     if (oData && oData.EntregaRespuestaSet) {
         aResp = oData.EntregaRespuestaSet.results || oData.EntregaRespuestaSet || [];
     }
-    this._pushProcesoMessages(aResp);
+    var mListByIdItem = {};
+    (aUpd || []).forEach(function (u) {
+        var k = (u && u.IdItem != null) ? String(u.IdItem) : "";
+        if (k) { mListByIdItem[k] = u; }
+    });
+    this._pushProcesoMessages(aResp, mListByIdItem, sTipoProc);
 
     if (oPedidosModel && oPedidosModel.refresh) {
         oPedidosModel.refresh(true);
     }
 },
 
-_pushProcesoMessages: function (aResp) {
-            // Vuelca mensajes al MessageManager (MessagesIndicator)
+_pushProcesoMessages: function (aResp, mListByIdItem, sTipoProc) {
+            // Mensajes al MessageManager (MessagesIndicator) - más descriptivos
             var oMM = sap.ui.getCore().getMessageManager();
             var aMsgs = [];
 
@@ -1200,14 +1222,38 @@ _pushProcesoMessages: function (aResp) {
             }
 
             (aResp || []).forEach(function (r) {
-                var sType = (r.TipoMsg === "E") ? MessageType.Error : MessageType.Success;
-                var sTitle = (r.TipoMsg === "E") ? "Error" : "OK";
-                var sText = (r.Mensaje || "");
+                var sTipo = (r.TipoMsg == null) ? "" : String(r.TipoMsg).trim();
+                var sMensaje = (r.Mensaje == null) ? "" : String(r.Mensaje).trim();
                 var sId = (r.IdItem != null) ? String(r.IdItem) : "";
+
+                // Tipo de mensaje
+                var sMsgType = MessageType.Information;
+                if (sTipo === "E") sMsgType = MessageType.Error;
+                else if (sTipo === "W") sMsgType = MessageType.Warning;
+                else if (sTipo === "S" || sTipo === "" || sTipo == null) sMsgType = MessageType.Success;
+
+                // Contexto (pedido/pos/entrega) si viene en EntregaListSet
+                var sCtx = "";
+                if (mListByIdItem && sId && mListByIdItem[sId]) {
+                    var u = mListByIdItem[sId];
+                    var sEbeln = (u.Ebeln != null) ? String(u.Ebeln) : "";
+                    var sEbelp = (u.Ebelp != null) ? String(u.Ebelp) : "";
+                    var sEntrega = (u.Entrega != null) ? String(u.Entrega) : "";
+                    sCtx = [sEbeln, sEbelp].filter(Boolean).join("/") || "";
+                    if (sEntrega) {
+                        sCtx = sCtx ? (sCtx + " | Entrega " + sEntrega) : ("Entrega " + sEntrega);
+                    }
+                } else if (sId) {
+                    sCtx = "IdItem " + sId;
+                }
+
+                var sPrefix = (sTipoProc ? (sTipoProc + " - ") : "");
+                var sTitle = sPrefix + (sCtx ? (sCtx + ": ") : "") + (sMensaje || (sMsgType === MessageType.Success ? "Proceso OK" : "Resultado"));
+
                 aMsgs.push(new Message({
-                    message: sTitle + (sId ? (" (" + sId + ")") : ""),
-                    description: sText,
-                    type: sType,
+                    message: sTitle,
+                    description: sMensaje || sTitle,
+                    type: sMsgType,
                     processor: oProc
                 }));
             });

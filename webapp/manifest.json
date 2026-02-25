@@ -27,17 +27,17 @@
             }
         },
         "crossNavigation": {
-        "inbounds": {
-            "ManageProductsDisplay": {
-            "semanticObject": "ZNTTManageProductsIC",
-            "action": "display",
-            "title": "Monitor BTP",
-            "signature": {
-                "parameters": {},
-                "additionalParameters": "allowed"
+            "inbounds": {
+                "ManageProductsDisplay": {
+                    "semanticObject": "ZNTTManageProductsIC",
+                    "action": "display",
+                    "title": "Monitor de Facturación Intercompany",
+                    "signature": {
+                        "parameters": {},
+                        "additionalParameters": "allowed"
+                    }
+                }
             }
-            }
-        }
         }
     },
     "sap.ui": {
@@ -74,7 +74,6 @@
                 "sap.ui.comp": {},
                 "sap.ui.export": {},
                 "sap.ui.table": {}
-
             }
         },
         "contentDensities": {
@@ -157,7 +156,7 @@
         }
     },
     "sap.cloud": {
-      "public": true,
-      "service": "comnttdatacuentas"
+        "public": true,
+        "service": "comnttdatacuentas"
     }
 }
