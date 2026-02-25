@@ -40,3 +40,9 @@
   background-color: #fff !important;
 }
 
+/* Ocupa ~90% del alto disponible del content del page */
+.tab90Height {
+  width: 98%;
+  height: 98%;
+  margin: auto; 
+}

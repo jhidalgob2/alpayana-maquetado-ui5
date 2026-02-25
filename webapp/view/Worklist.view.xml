@@ -21,11 +21,13 @@
         </semantic:titleHeading>
 
         <semantic:content>
-            <IconTabBar
-                id="iconTabBar"
-                select=".onQuickFilter"
-                expandable="false"
-            >
+<IconTabBar
+  id="iconTabBar"
+  select=".onQuickFilter"
+  expandable="false"
+  stretchContentHeight="true"
+  applyContentPadding="false"
+  class="tab90Height">
                 <items>
                     <IconTabFilter
                         key="inicial"
@@ -389,7 +391,7 @@
                             >
                                 <Text text="Estado Tolerancia" />
                                 <t:template>
-                                    <ObjectStatus icon="sap-icon://circle-task" state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}" />
+                                    <ObjectStatus icon="sap-icon://circle-task-2" state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}" />
                                 </t:template>
                             </t:Column>
                             <t:Column
