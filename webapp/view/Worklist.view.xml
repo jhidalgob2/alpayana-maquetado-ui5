@@ -5,7 +5,8 @@
     xmlns:semantic="sap.f.semantic"
     xmlns:fb="sap.ui.comp.filterbar"
     xmlns:t="sap.ui.table"
-    xmlns:core="sap.ui.core"
+   xmlns:core="sap.ui.core"
+    xmlns:l="sap.ui.layout"
     class="sapUiSizeCompact"
 >
     <semantic:SemanticPage
@@ -441,7 +442,7 @@
                         <fb:control>
                             <ComboBox
                                 id="selectCentroSum"
-                                width="10rem"
+                                width="14rem"
                                 items="{ path: 'worklistView>/centroSumOptions' }"
                                 selectedKey="{worklistView>/selectedCentroSum}"
                                 showClearIcon="true"
@@ -463,7 +464,7 @@
                         <fb:control>
                             <MultiComboBox
                                 id="selectCentroRecep"
-                                width="10rem"
+                                width="54rem"
                                 items="{ path: 'worklistView>/centroRecepOptions' }"
                                 selectedKeys="{worklistView>/selectedCentroRecep}"
                                 showClearIcon="true"
@@ -485,7 +486,7 @@
                         <fb:control>
                             <DateRangeSelection
                                 id="dateRangeEntrega"
-                                width="16rem"
+                                width="42.4rem"
                                 displayFormat="dd/MM/yyyy"
                                 valueFormat="yyyy-MM-dd"
                             />
@@ -501,7 +502,7 @@
                         <fb:control>
                             <ComboBox
                                 id="selectMaterial"
-                                width="12rem"
+                                width="16.8rem"
                                 items="{ path: 'worklistView>/materialOptions' }"
                                 selectedKey="{worklistView>/selectedMaterial}"
                                 showClearIcon="true"
@@ -513,6 +514,29 @@
                             </ComboBox>
                         </fb:control>
                     </fb:FilterGroupItem>
+                
+                    <fb:FilterGroupItem
+                        groupName="_BASIC"
+                        name="EstadoReg"
+                        label="Estado de Registro"
+                        visibleInFilterBar="true"
+                    >
+                        <fb:control>
+                            <MultiComboBox
+                                id="selectEstadoReg"
+                                width="14rem"
+                                items="{ path: 'worklistView>/estadoRegOptions' }"
+                                selectedKeys="{worklistView>/selectedEstadoReg}"
+                                showClearIcon="true"
+                            >
+                                <core:Item
+                                    key="{worklistView>key}"
+                                    text="{worklistView>text}"
+                                />
+                            </MultiComboBox>
+                        </fb:control>
+                    </fb:FilterGroupItem>
+
                 </fb:filterGroupItems>
             </fb:FilterBar>
         </semantic:headerContent>

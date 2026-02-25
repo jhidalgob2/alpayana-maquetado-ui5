@@ -63,11 +63,13 @@ sap.ui.define([
                 centroSumOptions: [],
                 centroRecepOptions: [],
                 materialOptions: [],
+                estadoRegOptions: [],
 
                 // Selected filters
                 selectedCentroSum: "",
                 selectedCentroRecep: [],
                 selectedMaterial: "",
+                selectedEstadoReg: [],
 
                 // Table / toolbar state
                 selectedRowsCount: 0,
@@ -198,6 +200,25 @@ success: function (oData) {
                     MessageBox.error(this._formatODataError(oError, "No se pudo cargar Centros (/CentroHeaderSet('1') expand)."));
                 }.bind(this)
             });
+            // 3) Estado de Registro: /EstadoRegistroSet
+            oODataModel.read("/EstadoRegistroSet", {
+                success: function (oData) {
+                    var aResults = (oData && oData.results) ? oData.results : [];
+                    var aOptions = aResults.map(function (oItem) {
+                        var sDesc = (oItem && (oItem.DesEstado || oItem.Desestado || oItem.DESESTADO)) || "";
+                        sDesc = String(sDesc).trim();
+                        if (!sDesc) return null;
+                        return { key: sDesc, text: sDesc };
+                    }).filter(Boolean);
+
+                    oViewModel.setProperty("/estadoRegOptions", aOptions);
+                }.bind(this),
+                error: function (oError) {
+                    MessageBox.error(this._formatODataError(oError, "No se pudo cargar Estado de Registro (/EstadoRegistroSet)."));
+                }.bind(this)
+            });
+
+
         },
 
         /**
@@ -444,7 +465,9 @@ success: function (oData) {
             var oGrupoMat = this.byId("selectMaterial");
             var oDateRange = this.byId("dateRangeEntrega");
 
-            [oCentroVend, oCentroComp, oGrupoMat, oDateRange].forEach(function (oCtrl) {
+            var oEstadoReg = this.byId("selectEstadoReg");
+
+            [oCentroVend, oCentroComp, oGrupoMat, oDateRange, oEstadoReg].forEach(function (oCtrl) {
                 if (oCtrl && oCtrl.setValueState) {
                     oCtrl.setValueState("None");
                     oCtrl.setValueStateText("");
@@ -464,6 +487,9 @@ success: function (oData) {
             var vCentroComp = oViewModel.getProperty("/selectedCentroRecep");
             var aCentroComp = Array.isArray(vCentroComp) ? vCentroComp : (vCentroComp ? [vCentroComp] : []);
             var sGrupoMat = oViewModel.getProperty("/selectedMaterial");
+
+            var vEstadoReg = oViewModel.getProperty("/selectedEstadoReg");
+            var aEstadoReg = Array.isArray(vEstadoReg) ? vEstadoReg : (vEstadoReg ? [vEstadoReg] : []);
 
             var oDateFrom = oView.byId("dateRangeEntrega").getDateValue();
             var oDateTo = oView.byId("dateRangeEntrega").getSecondDateValue();
@@ -511,6 +537,15 @@ success: function (oData) {
             ];
 
 
+            
+            // Estado de Registro (opcional, múltiple)
+            if (aEstadoReg.length) {
+                var oEstadoRegFilter = (aEstadoReg.length === 1)
+                    ? new Filter("EstadoReg", FilterOperator.EQ, aEstadoReg[0])
+                    : new Filter({ filters: aEstadoReg.map(function (k) { return new Filter("EstadoReg", FilterOperator.EQ, k); }), and: false });
+                aFilters.push(oEstadoRegFilter);
+            }
+
             this._loadDocumentoMonitor(aFilters);
         },
 
@@ -519,6 +554,7 @@ success: function (oData) {
             oViewModel.setProperty("/selectedCentroSum", "");
             oViewModel.setProperty("/selectedCentroRecep", []);
             oViewModel.setProperty("/selectedMaterial", "");
+            oViewModel.setProperty("/selectedEstadoReg", []);
             oViewModel.setProperty("/selectedRowsCount", 0);
 
             // Reset controls
