@@ -6,7 +6,6 @@
     xmlns:fb="sap.ui.comp.filterbar"
     xmlns:t="sap.ui.table"
    xmlns:core="sap.ui.core"
-    xmlns:l="sap.ui.layout"
     class="sapUiSizeCompact"
 >
     <semantic:SemanticPage
@@ -427,6 +426,8 @@
         <semantic:headerContent>
             <fb:FilterBar
                 id="filterBar"
+                    class="mainFilterBar"
+
                 showClearOnFB="true"
                 showRestoreOnFB="true"
                 search=".onFilterBarSearch"
