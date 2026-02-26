@@ -50,6 +50,7 @@ sap.ui.define([
             var oTable = this.byId("table");
             this._oTable = oTable;
             this._aTableSearchState = [];
+            this._aQuickFilterState = [];
 
             var oViewModel = new JSONModel({
                 worklistTableTitle: this.getResourceBundle().getText("worklistTableTitle"),
@@ -127,6 +128,10 @@ sap.ui.define([
 			this._setupStatusFactColumnMenu();
 			this._setupStatusSunatColumnMenu();
 			this._setupStatusMiroColumnMenu();
+
+            // Keep count/scroll in sync when column filters change
+            oTable.attachFilter(this._onTableColumnFilter, this);
+
 
             // Keep original busy delay after first data update
             var iOriginalBusyDelay = oTable.getBusyIndicatorDelay();
@@ -254,6 +259,10 @@ success: function (oData) {
                     oViewModel.setProperty("/statusFactOptions", fnUniq(mByTipo.FACT));
                     oViewModel.setProperty("/statusSunatOptions", fnUniq(mByTipo.ENSN));
                     oViewModel.setProperty("/statusMiroOptions", fnUniq(mByTipo.MIRO));
+
+                    // Re-crear menús de columna para que las "Sugerencias" ya incluyan EstadoFiltroSet
+                    // (FACT -> Status Facturación, ENSN -> Status Envío SUNAT, MIRO -> Status MIRO)
+                    this._refreshEstadoFiltroColumnMenus();
                 }.bind(this),
                 error: function (oError) {
                     // No bloquea el uso de la app
@@ -432,13 +441,13 @@ success: function (oData) {
                 cantEnt: nCantEnt,
                 precioSal: nImpSal,
                 precioEnt: nImpEnt,
-                statusFacturacion: o.StatusFact || "",
-                factura: o.Factura || "",
-                statusEnvioSunat: o.StatusEnvSunat || "",
-                referencia: o.Referencia || "",
-                statusMiro: o.StatusMiro || "",
+                statusFacturacion: (o.StatusFact == null) ? "" : String(o.StatusFact).trim(),
+                factura: (o.Factura == null) ? "" : String(o.Factura).trim(),
+                statusEnvioSunat: (o.StatusEnvSunat == null) ? "" : String(o.StatusEnvSunat).trim(),
+                referencia: (o.Referencia == null) ? "" : String(o.Referencia).trim(),
+                statusMiro: (o.StatusMiro == null) ? "" : String(o.StatusMiro).trim(),
                 docMiro: (o.DocMiro == null) ? "" : String(o.DocMiro),
-                mensajeUltimoEvento: o.MsjUltEvento || "",
+                mensajeUltimoEvento: (o.MsjUltEvento == null) ? "" : String(o.MsjUltEvento).trim(),
 
                 // Extra fields from the entity (not necessarily visible yet)
                 docSal643: (o.DocSal643 == null) ? "" : String(o.DocSal643),
@@ -447,7 +456,7 @@ ejercicio643: (o.Ejercicio643 == null) ? "" : String(o.Ejercicio643),
 posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 				// EstadoTol puede venir como 1/0/-1. Si viene vacío, lo dejamos vacío (formatter lo interpreta como 🟢).
 				estadoTol: (o.EstadoTol == null || o.EstadoTol === "") ? "" : Number(o.EstadoTol),
-                estadoReg: o.EstadoReg || "",
+                estadoReg: (o.EstadoReg == null) ? "" : String(o.EstadoReg).trim(),
                 budat: this._formatODataDate(o.Budat),
                 extwg: o.Extwg || "",
 
@@ -619,6 +628,8 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 				startsSection: true,
 				submenu: this._buildColumnsSubMenu(oTable)
 			}));
+
+
 
 			oCol.setMenu(oMenu);
 		},
@@ -794,40 +805,54 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 			}
 		},
 
-		_setupStatusFactColumnMenu: function () {
+		_setupStatusFactColumnMenu: function (bForce) {
 			this._setupDynamicSuggestionColumnMenu({
 				colId: "colStatusFacturacion",
 				menuId: "statusFactMenu",
 				optionsPath: "/statusFactOptions"
-			});
+			}, bForce);
 		},
 
-		_setupStatusSunatColumnMenu: function () {
+		_setupStatusSunatColumnMenu: function (bForce) {
 			this._setupDynamicSuggestionColumnMenu({
 				colId: "colStatusEnvioSunat",
 				menuId: "statusSunatMenu",
 				optionsPath: "/statusSunatOptions"
-			});
+			}, bForce);
 		},
 
-		_setupStatusMiroColumnMenu: function () {
+		_setupStatusMiroColumnMenu: function (bForce) {
 			this._setupDynamicSuggestionColumnMenu({
 				colId: "colStatusMIRO",
 				menuId: "statusMiroMenu",
 				optionsPath: "/statusMiroOptions"
-			});
+			}, bForce);
 		},
 
-		_setupDynamicSuggestionColumnMenu: function (mCfg) {
+		_refreshEstadoFiltroColumnMenus: function () {
+			// Re-crea los menús de columna de Status* para que las sugerencias reflejen el contenido de /EstadoFiltroSet.
+			// Esto evita "(Sin sugerencias)" cuando el usuario abre el menú antes de que termine la carga inicial.
+			this._setupStatusFactColumnMenu(true);
+			this._setupStatusSunatColumnMenu(true);
+			this._setupStatusMiroColumnMenu(true);
+		},
+
+		_setupDynamicSuggestionColumnMenu: function (mCfg, bForce) {
 			var oCol = this.byId(mCfg && mCfg.colId);
 			var oTable = this.byId("table");
 			if (!oCol || !oTable || !oCol.setMenu) {
 				return;
 			}
 
-			// If a custom menu is already set, do nothing.
-			if (oCol.getMenu && oCol.getMenu()) {
-				return;
+			// Si ya hay un menú custom, por defecto no lo recreamos (evita duplicados).
+			// Pero cuando bForce=true (p.ej. luego de cargar /EstadoFiltroSet), lo destruimos y lo recreamos
+			// para poblar "Sugerencias".
+			var oExistingMenu = (oCol.getMenu && oCol.getMenu()) ? oCol.getMenu() : null;
+			if (oExistingMenu) {
+				if (!bForce) {
+					return;
+				}
+				try { oExistingMenu.destroy(); } catch (e0) { /* ignore */ }
 			}
 
 			var that = this;
@@ -935,6 +960,9 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 					fnRebuildSuggestions();
 				});
 			}
+
+			// Construir sugerencias una vez inmediatamente (para versiones donde Menu no tenga beforeOpen)
+			fnRebuildSuggestions();
 
 			oCol.setMenu(oMenu);
 		},
@@ -1141,21 +1169,8 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
         /*  Other existing handlers (kept)                             */
         /* =========================================================== */
 
-        onUpdateFinished: function (oEvent) {
-            var sTitle,
-                oTable = oEvent.getSource(),
-                oViewModel = this.getModel("worklistView"),
-                oBinding = oTable.getBinding("rows"),
-                iTotalItems = oBinding ? oBinding.getLength() : 0;
-
-            // For client-side JSONModel, getLength() is final.
-            if (iTotalItems) {
-                sTitle = this.getResourceBundle().getText("worklistTableTitleCount", [iTotalItems]);
-                oViewModel.setProperty("/countAll", iTotalItems);
-            } else {
-                sTitle = this.getResourceBundle().getText("worklistTableTitle");
-            }
-            this.getModel("worklistView").setProperty("/worklistTableTitle", sTitle);
+        onUpdateFinished: function () {
+            this._updateWorklistTableTitleFromBinding();
         },
 
         onPress: function (oEvent) {
@@ -1210,19 +1225,80 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
         },
 
         _applySearch: function (aTableSearchState) {
-            var oTable = this.byId("table"),
-                oViewModel = this.getModel("worklistView");
+            var oViewModel = this.getModel("worklistView");
 
-            oTable.getBinding("rows").filter(aTableSearchState, FilterType.Application);
+            // Store search filters and combine with current tab (quick) filters
+            this._aTableSearchState = Array.isArray(aTableSearchState) ? aTableSearchState : [];
+            this._applyCombinedApplicationFilters(true);
 
-            if (aTableSearchState.length !== 0) {
+            if (this._aTableSearchState.length !== 0) {
                 oViewModel.setProperty("/tableNoDataText", this.getResourceBundle().getText("worklistNoDataWithSearchText"));
             } else {
                 oViewModel.setProperty("/tableNoDataText", this.getResourceBundle().getText("tableNoDataText"));
             }
         },
 
-        onQuickFilter: function (oEvent) {
+
+
+        _applyCombinedApplicationFilters: function (bResetFirstRow) {
+            var oTable = this.byId("table");
+            if (!oTable) return;
+
+            var oBinding = oTable.getBinding("rows");
+            if (!oBinding) return;
+
+            // Combine: current tab (quick) filters + search filters.
+            // Column menu filters (header filters) remain as FilterType.Control and will not override this.
+            var aAppFilters = [];
+            if (Array.isArray(this._aQuickFilterState) && this._aQuickFilterState.length) {
+                aAppFilters = aAppFilters.concat(this._aQuickFilterState);
+            }
+            if (Array.isArray(this._aTableSearchState) && this._aTableSearchState.length) {
+                aAppFilters = aAppFilters.concat(this._aTableSearchState);
+            }
+
+            oBinding.filter(aAppFilters, FilterType.Application);
+
+            // When the dataset shrinks due to filtering, keep scroll usable.
+            if (bResetFirstRow && oTable.setFirstVisibleRow) {
+                oTable.setFirstVisibleRow(0);
+            }
+
+            // Keep the "Cuentas (X)" counter always consistent.
+            this._updateWorklistTableTitleFromBinding();
+        },
+
+        _updateWorklistTableTitleFromBinding: function () {
+            var oTable = this.byId("table");
+            var oViewModel = this.getModel("worklistView");
+            if (!oTable || !oViewModel) return;
+
+            var oBinding = oTable.getBinding("rows");
+            var iTotalItems = oBinding ? oBinding.getLength() : 0;
+
+            var sTitle;
+            if (iTotalItems) {
+                sTitle = this.getResourceBundle().getText("worklistTableTitleCount", [iTotalItems]);
+                oViewModel.setProperty("/countAll", iTotalItems);
+            } else {
+                sTitle = this.getResourceBundle().getText("worklistTableTitle");
+                oViewModel.setProperty("/countAll", 0);
+            }
+            oViewModel.setProperty("/worklistTableTitle", sTitle);
+        },
+
+        _onTableColumnFilter: function () {
+            // Called when a column filter is applied/cleared (header menu).
+            // We only ensure scroll + counter are consistent. We do NOT change any business logic.
+            var oTable = this.byId("table");
+            if (oTable && oTable.setFirstVisibleRow) {
+                oTable.setFirstVisibleRow(0);
+            }
+            this._updateWorklistTableTitleFromBinding();
+        },
+
+
+                onQuickFilter: function (oEvent) {
             var oBinding = this._oTable.getBinding("rows"),
                 sKey = oEvent.getParameter("selectedKey"),
                 aFilters = [],
@@ -1332,7 +1408,9 @@ oViewModel.setProperty("/canSunat", false);
 oViewModel.setProperty("/canMiro", false);
 oViewModel.setProperty("/canRepro", false);
 
-oBinding.filter(aFilters);
+// Keep tab (quick) filters separate from column filters.
+this._aQuickFilterState = aFilters;
+this._applyCombinedApplicationFilters(true);
         },
 
         onSelectionChange: function () {
@@ -1864,14 +1942,14 @@ _applyEntregaResponse: function (oData, sTipoProc) {
         var r = aLocal[idx];
 
         // Campos que se deben actualizar según TipoProc (pero el backend puede devolverlos todos)
-        if (u.Factura != null) r.factura = u.Factura;
-        if (u.StatusFact != null) r.statusFacturacion = u.StatusFact;
-        if (u.Referencia != null) r.referencia = u.Referencia;
-        if (u.StatusEnvSunat != null) r.statusEnvioSunat = u.StatusEnvSunat;
+        if (u.Factura != null) r.factura = String(u.Factura).trim();
+        if (u.StatusFact != null) r.statusFacturacion = String(u.StatusFact).trim();
+        if (u.Referencia != null) r.referencia = String(u.Referencia).trim();
+        if (u.StatusEnvSunat != null) r.statusEnvioSunat = String(u.StatusEnvSunat).trim();
         if (u.DocMiro != null) r.docMiro = String(u.DocMiro);
-        if (u.StatusMiro != null) r.statusMiro = u.StatusMiro;
-        if (u.MsjUltEvento != null) r.mensajeUltimoEvento = u.MsjUltEvento;
-        if (u.EstadoReg != null) r.estadoReg = u.EstadoReg;
+        if (u.StatusMiro != null) r.statusMiro = String(u.StatusMiro).trim();
+        if (u.MsjUltEvento != null) r.mensajeUltimoEvento = String(u.MsjUltEvento).trim();
+        if (u.EstadoReg != null) r.estadoReg = String(u.EstadoReg).trim();
     });
 
     // Mensajes por item (EntregaRespuestaSet)
@@ -1945,12 +2023,20 @@ _pushProcesoMessages: function (aResp, mListByIdItem, sTipoProc) {
                     processor: oProc
                 }));
             });
+            // Si el backend no devuelve mensajes, dejamos al menos un Success para que MessagesIndicator sea visible
+            if (!aMsgs.length) {
+                var sPfx = (sTipoProc ? (sTipoProc + " - ") : "");
+                aMsgs.push(new Message({
+                    message: sPfx + "Proceso ejecutado.",
+                    description: sPfx + "Proceso ejecutado. Revise el estado actualizado en la tabla.",
+                    type: MessageType.Success,
+                    processor: oProc
+                }));
+            }
 
             // Limpia + agrega (evita superposición)
             try { oMM.removeAllMessages(); } catch (e) { /* ignore */ }
-            if (aMsgs.length) {
-                oMM.addMessages(aMsgs);
-            }
+            try { oMM.addMessages(aMsgs); } catch (e2) { /* ignore */ }
         },
 
         onProcessSelected: function () {

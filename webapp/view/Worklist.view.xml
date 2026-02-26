@@ -7,7 +7,7 @@
     xmlns:t="sap.ui.table"
    xmlns:core="sap.ui.core"
     class="sapUiSizeCompact"
->
+> 
     <semantic:SemanticPage
         id="page"
         class="appRoot"
@@ -563,7 +563,7 @@
                         </fb:control>
                     </fb:FilterGroupItem>
 
-                    <fb:FilterGroupItem
+                    <!-- <fb:FilterGroupItem
                         groupName="_BASIC"
                         name="StatusFact"
                         label="Status Facturación"
@@ -605,8 +605,8 @@
                                 />
                             </MultiComboBox>
                         </fb:control>
-                    </fb:FilterGroupItem>
-
+                    </fb:FilterGroupItem> -->
+<!-- 
                     <fb:FilterGroupItem
                         groupName="_BASIC"
                         name="StatusMiro"
@@ -627,7 +627,7 @@
                                 />
                             </MultiComboBox>
                         </fb:control>
-                    </fb:FilterGroupItem>
+                    </fb:FilterGroupItem> -->
 
                 </fb:filterGroupItems>
             </fb:FilterBar>
