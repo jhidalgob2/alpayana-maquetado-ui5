@@ -73,11 +73,21 @@ sap.ui.define([
                 materialOptions: [],
                 estadoRegOptions: [],
 
+                // EstadoFiltroSet options (by TipoProc)
+                statusFactOptions: [],
+                statusSunatOptions: [],
+                statusMiroOptions: [],
+
                 // Selected filters
                 selectedCentroSum: "",
                 selectedCentroRecep: [],
                 selectedMaterial: "",
                 selectedEstadoReg: [],
+
+                // Selected EstadoFiltroSet filters
+                selectedStatusFact: [],
+                selectedStatusSunat: [],
+                selectedStatusMiro: [],
 
                 // Table / toolbar state
                 selectedRowsCount: 0,
@@ -114,6 +124,9 @@ sap.ui.define([
 			// and reproduce the standard actions (sort + filter) there.
 			this._setupEstadoTolColumnMenu();
 			this._setupEstadoRegColumnMenu();
+			this._setupStatusFactColumnMenu();
+			this._setupStatusSunatColumnMenu();
+			this._setupStatusMiroColumnMenu();
 
             // Keep original busy delay after first data update
             var iOriginalBusyDelay = oTable.getBusyIndicatorDelay();
@@ -121,33 +134,10 @@ sap.ui.define([
                 oViewModel.setProperty("/tableBusyDelay", iOriginalBusyDelay);
             });
 
-            // Dummy messages (kept as-is; later you can replace with real backend feedback)
+            // Message processor for MessagesIndicator (messages are pushed per backend response)
             var oMessageProcessor = new ControlMessageProcessor();
             Messaging.registerMessageProcessor(oMessageProcessor);
             this._oMessageProcessor = oMessageProcessor;
-
-            Messaging.addMessages([
-                new Message({
-                    message: "Los registros fueron enviados correctamente para su procesamiento.",
-                    type: MessageType.Success,
-                    processor: oMessageProcessor
-                }),
-                new Message({
-                    message: "Existen registros con diferencias entre Cant. Salida y Cant. Entrega que no serán procesados.",
-                    type: MessageType.Warning,
-                    processor: oMessageProcessor
-                }),
-                new Message({
-                    message: "Error al enviar los registros para su procesamiento. Por favor, intente nuevamente.",
-                    type: MessageType.Error,
-                    processor: oMessageProcessor
-                }),
-                new Message({
-                    message: "No se han seleccionado registros para procesar.",
-                    type: MessageType.Information,
-                    processor: oMessageProcessor
-                })
-            ]);
         },
 
         /* =========================================================== */
@@ -232,6 +222,42 @@ success: function (oData) {
                 }.bind(this),
                 error: function (oError) {
                     MessageBox.error(this._formatODataError(oError, "No se pudo cargar Estado de Registro (/EstadoRegistroSet)."));
+                }.bind(this)
+            });
+
+            // 4) Estados por proceso: /EstadoFiltroSet (TipoProc -> DescEstd)
+            oODataModel.read("/EstadoFiltroSet", {
+                success: function (oData) {
+                    var aResults = (oData && oData.results) ? oData.results : [];
+                    var mByTipo = { FACT: [], ENSN: [], MIRO: [] };
+
+                    aResults.forEach(function (r) {
+                        if (!r) return;
+                        var sTipo = (r.TipoProc == null) ? "" : String(r.TipoProc).trim().toUpperCase();
+                        var sDesc = (r.DescEstd == null) ? "" : String(r.DescEstd).trim();
+                        if (!sTipo || !sDesc) return;
+                        if (!mByTipo[sTipo]) mByTipo[sTipo] = [];
+                        mByTipo[sTipo].push({ key: sDesc, text: sDesc });
+                    });
+
+                    var fnUniq = function (a) {
+                        var m = {};
+                        return (a || []).filter(function (x) {
+                            var k = x && x.key;
+                            if (!k) return false;
+                            if (m[k]) return false;
+                            m[k] = true;
+                            return true;
+                        });
+                    };
+
+                    oViewModel.setProperty("/statusFactOptions", fnUniq(mByTipo.FACT));
+                    oViewModel.setProperty("/statusSunatOptions", fnUniq(mByTipo.ENSN));
+                    oViewModel.setProperty("/statusMiroOptions", fnUniq(mByTipo.MIRO));
+                }.bind(this),
+                error: function (oError) {
+                    // No bloquea el uso de la app
+                    MessageBox.error(this._formatODataError(oError, "No se pudo cargar Estados por Proceso (/EstadoFiltroSet)."));
                 }.bind(this)
             });
 
@@ -487,7 +513,11 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 
             var oEstadoReg = this.byId("selectEstadoReg");
 
-            [oCentroVend, oCentroComp, oGrupoMat, oDateRange, oEstadoReg].forEach(function (oCtrl) {
+            var oStatusFact = this.byId("selectStatusFact");
+            var oStatusSunat = this.byId("selectStatusSunat");
+            var oStatusMiro = this.byId("selectStatusMiro");
+
+            [oCentroVend, oCentroComp, oGrupoMat, oDateRange, oEstadoReg, oStatusFact, oStatusSunat, oStatusMiro].forEach(function (oCtrl) {
                 if (oCtrl && oCtrl.setValueState) {
                     oCtrl.setValueState("None");
                     oCtrl.setValueStateText("");
@@ -749,19 +779,181 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 			}
 		},
 
+		_applyColumnQuickFilter: function (oCol, vValue) {
+			var oTable = this.byId("table");
+			if (!oTable || !oCol || !oTable.filter) {
+				return;
+			}
+
+			var sVal = (vValue == null) ? "" : String(vValue);
+			try {
+				oCol.setFilterValue(sVal);
+				oTable.filter(oCol, sVal);
+			} catch (e) {
+				// ignore
+			}
+		},
+
+		_setupStatusFactColumnMenu: function () {
+			this._setupDynamicSuggestionColumnMenu({
+				colId: "colStatusFacturacion",
+				menuId: "statusFactMenu",
+				optionsPath: "/statusFactOptions"
+			});
+		},
+
+		_setupStatusSunatColumnMenu: function () {
+			this._setupDynamicSuggestionColumnMenu({
+				colId: "colStatusEnvioSunat",
+				menuId: "statusSunatMenu",
+				optionsPath: "/statusSunatOptions"
+			});
+		},
+
+		_setupStatusMiroColumnMenu: function () {
+			this._setupDynamicSuggestionColumnMenu({
+				colId: "colStatusMIRO",
+				menuId: "statusMiroMenu",
+				optionsPath: "/statusMiroOptions"
+			});
+		},
+
+		_setupDynamicSuggestionColumnMenu: function (mCfg) {
+			var oCol = this.byId(mCfg && mCfg.colId);
+			var oTable = this.byId("table");
+			if (!oCol || !oTable || !oCol.setMenu) {
+				return;
+			}
+
+			// If a custom menu is already set, do nothing.
+			if (oCol.getMenu && oCol.getMenu()) {
+				return;
+			}
+
+			var that = this;
+			var oMenu = new Menu(this.getView().createId(mCfg.menuId || (mCfg.colId + "Menu")));
+
+			// 1) Standard actions (replicated)
+			oMenu.addItem(new MenuItem({
+				text: "Sort Ascending",
+				icon: "sap-icon://sort-ascending",
+				select: function () {
+					try { oTable.sort(oCol, tableLibrary.SortOrder.Ascending); } catch (e) { /* ignore */ }
+				}
+			}));
+			oMenu.addItem(new MenuItem({
+				text: "Sort Descending",
+				icon: "sap-icon://sort-descending",
+				select: function () {
+					try { oTable.sort(oCol, tableLibrary.SortOrder.Descending); } catch (e) { /* ignore */ }
+				}
+			}));
+
+			var oFilterItem = new MenuTextFieldItem({
+				label: "Filter",
+				icon: "sap-icon://filter",
+				value: (oCol.getFilterValue ? (oCol.getFilterValue() || "") : ""),
+				select: function () {
+					var sVal = oFilterItem.getValue();
+					try {
+						oCol.setFilterValue(sVal);
+						oTable.filter(oCol, sVal);
+					} catch (e) { /* ignore */ }
+				}
+			});
+			oMenu.addItem(oFilterItem);
+
+			// 2) Dynamic suggestions (from EstadoFiltroSet)
+			var oSugHeader = new MenuItem({
+				text: "Sugerencias",
+				startsSection: true,
+				enabled: false
+			});
+			oMenu.addItem(oSugHeader);
+
+			// Placeholder (will be replaced on beforeOpen)
+			var oPlaceholder = new MenuItem({
+				text: "(Sin sugerencias)",
+				enabled: false
+			});
+			oMenu.addItem(oPlaceholder);
+
+			var oClearItem = new MenuItem({
+				text: "Quitar filtro",
+				select: function () { that._applyColumnQuickFilter(oCol, null); }
+			});
+			oMenu.addItem(oClearItem);
+
+			var oColumnsItem = new MenuItem({
+				text: "Columns",
+				startsSection: true,
+				submenu: this._buildColumnsSubMenu(oTable)
+			});
+			oMenu.addItem(oColumnsItem);
+
+			var fnRebuildSuggestions = function () {
+				try {
+					var aItems = oMenu.getItems() || [];
+					var iHeader = aItems.indexOf(oSugHeader);
+					var iClear = aItems.indexOf(oClearItem);
+					if (iHeader < 0 || iClear < 0 || iClear <= iHeader) {
+						return;
+					}
+
+					// Remove any existing suggestion items (between header and clear)
+					for (var i = iClear - 1; i > iHeader; i--) {
+						oMenu.removeItem(aItems[i]);
+					}
+
+					var oVM = that.getModel("worklistView");
+					var aOpts = (oVM && oVM.getProperty) ? (oVM.getProperty(mCfg.optionsPath) || []) : [];
+					var iInsertAt = (oMenu.getItems() || []).indexOf(oClearItem);
+
+					if (!Array.isArray(aOpts) || aOpts.length === 0) {
+						oMenu.insertItem(new MenuItem({ text: "(Sin sugerencias)", enabled: false }), iInsertAt);
+						return;
+					}
+
+					aOpts.forEach(function (oOpt) {
+						var sKey = (oOpt && oOpt.key != null) ? String(oOpt.key) : "";
+						var sText = (oOpt && oOpt.text != null) ? String(oOpt.text) : sKey;
+						if (!sKey) return;
+						oMenu.insertItem(new MenuItem({
+							text: sText,
+							select: function () { that._applyColumnQuickFilter(oCol, sKey); }
+						}), iInsertAt++);
+					});
+				} catch (e) {
+					// ignore
+				}
+			};
+
+			// Keep the filter text field + suggestions in sync whenever the menu opens
+			if (oMenu.attachBeforeOpen) {
+				oMenu.attachBeforeOpen(function () {
+					try { oFilterItem.setValue(oCol.getFilterValue ? (oCol.getFilterValue() || "") : ""); } catch (e) { /* ignore */ }
+					fnRebuildSuggestions();
+				});
+			}
+
+			oCol.setMenu(oMenu);
+		},
+
 		_isSunatApproved: function (sStatus) {
+			// Requerimiento: comparación por DescEstd EXACTO (EstadoFiltroSet)
 			var s = (sStatus == null) ? "" : String(sStatus);
 			s = s.trim().toUpperCase();
-			return s === "AP" || s.indexOf("AP") === 0 || s.indexOf(" AP") > -1 || s.indexOf("APROB") > -1;
+			return s === "AP - APROBADO SUNAT";
 		},
 
 		_makeSunatApprovedFilter: function (bApproved) {
-			var oF = new Filter("statusEnvioSunat", FilterOperator.EQ, "AP");
-			oF.fnTest = function (v) {
-				var b = this._isSunatApproved(v);
-				return bApproved ? b : !b;
-			}.bind(this);
-			return oF;
+			// Importante: usar comparación EXACTA (sin fnTest) para evitar que un mismo registro
+			// aparezca en Enviado y Reprocesado.
+			return new Filter(
+				"statusEnvioSunat",
+				bApproved ? FilterOperator.EQ : FilterOperator.NE,
+				"AP - Aprobado SUNAT"
+			);
 		},
 
         /* =========================================================== */
@@ -779,6 +971,16 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 
             var vEstadoReg = oViewModel.getProperty("/selectedEstadoReg");
             var aEstadoReg = Array.isArray(vEstadoReg) ? vEstadoReg : (vEstadoReg ? [vEstadoReg] : []);
+
+            // Filtros por estado de proceso (EstadoFiltroSet)
+            var vStatusFact = oViewModel.getProperty("/selectedStatusFact");
+            var aStatusFact = Array.isArray(vStatusFact) ? vStatusFact : (vStatusFact ? [vStatusFact] : []);
+
+            var vStatusSunat = oViewModel.getProperty("/selectedStatusSunat");
+            var aStatusSunat = Array.isArray(vStatusSunat) ? vStatusSunat : (vStatusSunat ? [vStatusSunat] : []);
+
+            var vStatusMiro = oViewModel.getProperty("/selectedStatusMiro");
+            var aStatusMiro = Array.isArray(vStatusMiro) ? vStatusMiro : (vStatusMiro ? [vStatusMiro] : []);
 
             var oDateFrom = oView.byId("dateRangeEntrega").getDateValue();
             var oDateTo = oView.byId("dateRangeEntrega").getSecondDateValue();
@@ -835,6 +1037,30 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
                 aFilters.push(oEstadoRegFilter);
             }
 
+            // Status Facturación (TipoProc=FACT) -> backend: StatusFact
+            if (aStatusFact.length) {
+                var oStatusFactFilter = (aStatusFact.length === 1)
+                    ? new Filter("StatusFact", FilterOperator.EQ, aStatusFact[0])
+                    : new Filter({ filters: aStatusFact.map(function (k) { return new Filter("StatusFact", FilterOperator.EQ, k); }), and: false });
+                aFilters.push(oStatusFactFilter);
+            }
+
+            // Status Envío SUNAT (TipoProc=ENSN) -> backend: StatusEnvSunat
+            if (aStatusSunat.length) {
+                var oStatusSunatFilter = (aStatusSunat.length === 1)
+                    ? new Filter("StatusEnvSunat", FilterOperator.EQ, aStatusSunat[0])
+                    : new Filter({ filters: aStatusSunat.map(function (k) { return new Filter("StatusEnvSunat", FilterOperator.EQ, k); }), and: false });
+                aFilters.push(oStatusSunatFilter);
+            }
+
+            // Status MIRO (TipoProc=MIRO) -> backend: StatusMiro
+            if (aStatusMiro.length) {
+                var oStatusMiroFilter = (aStatusMiro.length === 1)
+                    ? new Filter("StatusMiro", FilterOperator.EQ, aStatusMiro[0])
+                    : new Filter({ filters: aStatusMiro.map(function (k) { return new Filter("StatusMiro", FilterOperator.EQ, k); }), and: false });
+                aFilters.push(oStatusMiroFilter);
+            }
+
             this._loadDocumentoMonitor(aFilters);
         },
 
@@ -844,6 +1070,10 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
             oViewModel.setProperty("/selectedCentroRecep", []);
             oViewModel.setProperty("/selectedMaterial", "");
             oViewModel.setProperty("/selectedEstadoReg", []);
+
+            oViewModel.setProperty("/selectedStatusFact", []);
+            oViewModel.setProperty("/selectedStatusSunat", []);
+            oViewModel.setProperty("/selectedStatusMiro", []);
             oViewModel.setProperty("/selectedRowsCount", 0);
 
             // Reset controls
@@ -1476,12 +1706,60 @@ _postEntregaProceso: function (sTipoProc, sPeriodProc, aRows) {
 oViewModel.setProperty("/canRepro", false);
 
             MessageToast.show("Proceso " + sTipoProc + " enviado. Revise mensajes/estado.");
+
+            // Recargar datos y mover a la siguiente etapa para visualizar el nuevo estado
+            this._refreshAfterProcess(sTipoProc, oData);
         }.bind(this),
         error: function (oError) {
             oTable.setBusy(false);
             MessageBox.error(this._formatODataError(oError, "Error al procesar (" + sTipoProc + ") en /EntregaSet."));
         }.bind(this)
     });
+},
+
+_refreshAfterProcess: function (sTipoProc, oData) {
+    // No cambia lógica de negocio: solo refresca la data y navega a la pestaña donde corresponde ver el estado.
+    try {
+        var sNextKey = "inicial";
+
+        if (sTipoProc === "FACT") {
+            sNextKey = "facturadoSAP";
+        } else if (sTipoProc === "MIRO") {
+            sNextKey = "registradoMIRO";
+		} else if (sTipoProc === "ENSN" || sTipoProc === "ERSN") {
+            // Si el backend ya devuelve AP - Aprobado SUNAT -> Enviado; si no, Reprocesado
+            var sAny = "";
+            try {
+                var aUpd = (oData && oData.EntregaListSet) ? (oData.EntregaListSet.results || oData.EntregaListSet || []) : [];
+                if (Array.isArray(aUpd) && aUpd.length) {
+                    sAny = aUpd[0].StatusEnvSunat || aUpd[0].statusEnvioSunat || "";
+                }
+            } catch (e1) { /* ignore */ }
+
+            sNextKey = this._isSunatApproved(sAny) ? "enviadoSUNAT" : "reprocesadoSUNAT";
+        }
+
+        // Cambiar a la pestaña destino
+        var oTab = this.byId("iconTabBar");
+        if (oTab && oTab.setSelectedKey) {
+            oTab.setSelectedKey(sNextKey);
+        }
+
+        // Re-consultar al backend con los mismos filtros seleccionados
+        this.onFilterBarSearch();
+
+        // Re-aplicar el filtro de la pestaña (client-side) tras recargar
+        if (typeof this.onQuickFilter === "function") {
+            this.onQuickFilter({
+                getParameter: function (sName) {
+                    return (sName === "selectedKey") ? sNextKey : null;
+                }
+            });
+        }
+    } catch (e) {
+        // fallback: al menos recargar
+        try { this.onFilterBarSearch(); } catch (e2) { /* ignore */ }
+    }
 },
 
 _buildEntregaPayload: function (sTipoProc, sPeriodProc, aRows) {
@@ -1626,6 +1904,7 @@ _pushProcesoMessages: function (aResp, mListByIdItem, sTipoProc) {
                 this._oMessageProcessor = oProc;
             }
 
+            var mSeen = {};
             (aResp || []).forEach(function (r) {
                 var sTipo = (r.TipoMsg == null) ? "" : String(r.TipoMsg).trim();
                 var sMensaje = (r.Mensaje == null) ? "" : String(r.Mensaje).trim();
@@ -1655,6 +1934,10 @@ _pushProcesoMessages: function (aResp, mListByIdItem, sTipoProc) {
                 var sPrefix = (sTipoProc ? (sTipoProc + " - ") : "");
                 var sTitle = sPrefix + (sCtx ? (sCtx + ": ") : "") + (sMensaje || (sMsgType === MessageType.Success ? "Proceso OK" : "Resultado"));
 
+                // Evita duplicados
+                if (mSeen[sTitle]) { return; }
+                mSeen[sTitle] = true;
+
                 aMsgs.push(new Message({
                     message: sTitle,
                     description: sMensaje || sTitle,
@@ -1663,7 +1946,7 @@ _pushProcesoMessages: function (aResp, mListByIdItem, sTipoProc) {
                 }));
             });
 
-            // Limpia + agrega
+            // Limpia + agrega (evita superposición)
             try { oMM.removeAllMessages(); } catch (e) { /* ignore */ }
             if (aMsgs.length) {
                 oMM.addMessages(aMsgs);

@@ -65,8 +65,8 @@
                     <t:Table
                         id="table"
                         busyIndicatorDelay="{worklistView>/tableBusyDelay}"
-                        width="100%"
-                        class="sapUiSizeCompact"
+                        width="95%"
+                        class="sapUiSizeCompact myTable95"
                         visibleRowCountMode="Auto"
                         minAutoRowCount="8"
                         enableColumnReordering="true"
@@ -327,6 +327,7 @@
                                 visible="{worklistView>/colStatusFacturacionVisible}"
                                 sortProperty="statusFacturacion"
                                 filterProperty="statusFacturacion"
+                                filterOperator="EQ"
                             >
                                 <Text text="Status Facturación" />
                                 <t:template>
@@ -353,6 +354,7 @@
                                 visible="{worklistView>/colStatusEnvioSunatVisible}"
                                 sortProperty="statusEnvioSunat"
                                 filterProperty="statusEnvioSunat"
+                                filterOperator="EQ"
                             >
                                 <Text text="Status Envío Sunat" />
                                 <t:template>
@@ -379,6 +381,7 @@
                                 visible="{worklistView>/colStatusMIROVisible}"
                                 sortProperty="statusMiro"
                                 filterProperty="statusMiro"
+                                filterOperator="EQ"
                             >
                                 <Text text="Status MIRO" />
                                 <t:template>
@@ -550,6 +553,72 @@
                                 width="14rem"
                                 items="{ path: 'worklistView>/estadoRegOptions' }"
                                 selectedKeys="{worklistView>/selectedEstadoReg}"
+                                showClearIcon="true"
+                            >
+                                <core:Item
+                                    key="{worklistView>key}"
+                                    text="{worklistView>text}"
+                                />
+                            </MultiComboBox>
+                        </fb:control>
+                    </fb:FilterGroupItem>
+
+                    <fb:FilterGroupItem
+                        groupName="_BASIC"
+                        name="StatusFact"
+                        label="Status Facturación"
+                        visibleInFilterBar="true"
+                    >
+                        <fb:control>
+                            <MultiComboBox
+                                id="selectStatusFact"
+                                width="18rem"
+                                items="{ path: 'worklistView>/statusFactOptions' }"
+                                selectedKeys="{worklistView>/selectedStatusFact}"
+                                showClearIcon="true"
+                            >
+                                <core:Item
+                                    key="{worklistView>key}"
+                                    text="{worklistView>text}"
+                                />
+                            </MultiComboBox>
+                        </fb:control>
+                    </fb:FilterGroupItem>
+
+                    <fb:FilterGroupItem
+                        groupName="_BASIC"
+                        name="StatusEnvSunat"
+                        label="Status Envío SUNAT"
+                        visibleInFilterBar="true"
+                    >
+                        <fb:control>
+                            <MultiComboBox
+                                id="selectStatusSunat"
+                                width="22rem"
+                                items="{ path: 'worklistView>/statusSunatOptions' }"
+                                selectedKeys="{worklistView>/selectedStatusSunat}"
+                                showClearIcon="true"
+                            >
+                                <core:Item
+                                    key="{worklistView>key}"
+                                    text="{worklistView>text}"
+                                />
+                            </MultiComboBox>
+                        </fb:control>
+                    </fb:FilterGroupItem>
+
+                    <fb:FilterGroupItem
+                        groupName="_BASIC"
+                        name="StatusMiro"
+                        label="Status MIRO"
+                        visibleInFilterBar="true"
+                    >
+                        <fb:control>
+                            <MultiComboBox
+                                id="selectStatusMiro"
+                                width="18rem"
+                                items="{ path: 'worklistView>/statusMiroOptions' }"
+                                selectedKeys="{worklistView>/selectedStatusMiro}"
                                 showClearIcon="true"
                             >
                                 <core:Item

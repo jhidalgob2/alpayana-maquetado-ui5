@@ -47,6 +47,11 @@
   padding-bottom: 3rem;
 
 } 
+
+/* Evita que la GridTable se "pegue" al borde y ayuda a no perder el scroll */
+.myTable95 {
+  margin: 0 auto;
+}
 /* Solo para EstadoTol cuando el ValueState sea Warning (0) */
 .estadoTolStatus.sapMObjStatusWarning .sapMObjStatusIcon,
 .estadoTolStatus.sapMObjStatusWarning .sapMObjStatusText {
