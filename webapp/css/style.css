@@ -40,12 +40,16 @@
   background-color: #fff !important;
 }
 
- .tab90Height {
+ /* Work Zone: keep table a bit narrower without breaking sap.ui.table layout */
+.tab90Height {
   width: 95% !important;
-  height: 95% ;
-  margin-top: 1rem;
-  padding-bottom: 3rem;
+  margin: 1rem auto 0 auto;
+}
 
+/* Work Zone: extra bottom space so table horizontal scrollbar is not covered */
+.appRoot .sapFDynamicPageContentWrapper {
+  padding-bottom: 3.5rem;
+  box-sizing: border-box;
 } 
 
 /* Evita que la GridTable se "pegue" al borde y ayuda a no perder el scroll */

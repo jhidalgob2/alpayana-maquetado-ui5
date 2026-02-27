@@ -14,7 +14,7 @@
         headerPinnable="false"
         toggleHeaderOnTitleClick="false"
         fitContent="false"
-        showFooter="true"
+        showFooter="false"
     >
         <semantic:titleHeading>
             <Title text="{i18n>worklistTitle}" />
@@ -67,8 +67,8 @@
                         busyIndicatorDelay="{worklistView>/tableBusyDelay}"
                         width="95%"
                         class="sapUiSizeCompact myTable95"
-                        visibleRowCountMode="Fixed"
-                        visibleRowCount="12"
+                    visibleRowCountMode="Fixed"
+                    visibleRowCount="8"
                         enableColumnReordering="true"
                         showColumnVisibilityMenu="true"
                         selectionMode="{worklistView>/tableSelectionMode}"
@@ -126,7 +126,15 @@
                                     press=".onExport"
                                     tooltip="Exportar datos a Excel"
                                 />
-                            </OverflowToolbar>
+                            
+                                <Button
+                                    id="messagesBtn"
+                                    icon="sap-icon://message-popup"
+                                    type="Transparent"
+                                    press=".onMessagesButtonPress"
+                                    tooltip="Mensajes"
+                                />
+</OverflowToolbar>
                         </t:toolbar>
 
                         <t:noData>
@@ -631,10 +639,5 @@
 
                 </fb:filterGroupItems>
             </fb:FilterBar>
-        </semantic:headerContent>
-
-        <semantic:messagesIndicator>
-            <semantic:MessagesIndicator press="onMessagesButtonPress" />
-        </semantic:messagesIndicator>
-    </semantic:SemanticPage>
+        </semantic:headerContent></semantic:SemanticPage>
 </mvc:View>

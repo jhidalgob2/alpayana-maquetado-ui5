@@ -371,6 +371,39 @@ success: function (oData) {
         },
 
 
+        _resetTableScrollToTop: function () {
+            var oTable = this.byId("table");
+            if (!oTable) return;
+
+            var fnReset = function () {
+                try {
+                    if (oTable.setFirstVisibleRow) {
+                        oTable.setFirstVisibleRow(0);
+                    }
+                    if (oTable.setFirstVisibleColumn) {
+                        oTable.setFirstVisibleColumn(0);
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            };
+
+            // 1) Intento inmediato
+            fnReset();
+
+            // 2) En Work Zone, el layout/render puede reajustar el scroll después;
+            //    por eso reseteamos de nuevo cuando termine la actualización de filas.
+            if (oTable.attachEventOnce) {
+                oTable.attachEventOnce("rowsUpdated", function () {
+                    fnReset();
+                });
+            }
+
+            // 3) Último intento post-render (microtask)
+            setTimeout(fnReset, 0);
+        },
+
+
         _loadDocumentoMonitor: function (aFilters) {
             var oODataModel = this._getArticuloModel();
             var oTable = this.byId("table");
@@ -394,7 +427,9 @@ success: function (oData) {
                     this.getModel("worklistView").setProperty("/selectedRowsCount", 0);
                     oTable.clearSelection();
 
-                    oTable.setBusy(false);
+                    // Reset scroll to top (Work Zone-safe)
+                    this._resetTableScrollToTop();
+oTable.setBusy(false);
                 }.bind(this),
                 error: function (oError) {
                     oTable.setBusy(false);
@@ -1169,8 +1204,56 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
         /*  Other existing handlers (kept)                             */
         /* =========================================================== */
 
-        onUpdateFinished: function () {
+        onUpdateFinished: function (oEvent) {
             this._updateWorklistTableTitleFromBinding();
+
+            // Workzone (SAP Build Work Zone / Launchpad) sometimes applies a clipped scroll
+            // container (e.g. padding-top + clip-path + overflow) which can cause the
+            // GridTable auto row calculation to be off by ~1 row.
+            // Typical symptom: counter says N, but the last row is not reachable until the
+            // browser is resized/zoomed. We force a size recalculation after rows render.
+            var oTable = oEvent && oEvent.getSource ? oEvent.getSource() : this.byId("table");
+            this._workzoneFixRequestTableResize(oTable);
+        },
+
+        /**
+         * Work Zone-specific: forces a Table size recalculation after rendering.
+         * This is intentionally conservative to avoid resize loops.
+         * @param {sap.ui.table.Table} oTable
+         * @private
+         */
+        _workzoneFixRequestTableResize: function (oTable) {
+            if (!oTable || !oTable.getDomRef || !oTable.getDomRef()) {
+                return;
+            }
+
+            // Debounce to avoid triggering a resize loop via rowsUpdated.
+            if (this._bWzTableResizeScheduled) {
+                return;
+            }
+            this._bWzTableResizeScheduled = true;
+
+            // Wait for the DOM to settle (column widths, horizontal scrollbar, etc.).
+            setTimeout(function () {
+                try {
+                    // sap.ui.table.Table has an internal resize handler used by ResizeHandler.
+                    // Calling it here is the lightest way to sync row count + scrollbars.
+                    if (typeof oTable._onResize === "function") {
+                        oTable._onResize();
+                    } else {
+                        // Fallback: trigger a normal UI5 invalidation if the internal handler is not available.
+                        oTable.invalidate();
+                        sap.ui.getCore().applyChanges();
+                    }
+                } catch (e) {
+                    // Never block the UI due to this fix.
+                }
+
+                // Release the debounce after a short delay to prevent cascading updates.
+                setTimeout(function () {
+                    this._bWzTableResizeScheduled = false;
+                }.bind(this), 250);
+            }.bind(this), 0);
         },
 
         onPress: function (oEvent) {
