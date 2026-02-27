@@ -62,20 +62,25 @@
                 </items>
 
                 <content>
-                    <t:Table
-                        id="table"
-                        busyIndicatorDelay="{worklistView>/tableBusyDelay}"
-                        width="95%"
-                        class="sapUiSizeCompact myTable95"
-                    visibleRowCountMode="Fixed"
-                    visibleRowCount="8"
-                        enableColumnReordering="true"
-                        showColumnVisibilityMenu="true"
-                        selectionMode="{worklistView>/tableSelectionMode}"
-                        rowSelectionChange=".onSelectionChange"
-                        rowsUpdated=".onUpdateFinished"
-                        rows="{ path: 'pedidos>/' }"
+                    <Panel
+                        id="panelGridTable"
+                        width="100%"
+                        class="sapUiNoContentPadding"
                     >
+                        <t:Table
+                            id="table"
+                            busyIndicatorDelay="{worklistView>/tableBusyDelay}"
+                            width="95%"
+                            class="sapUiSizeCompact myTable95"
+                        visibleRowCountMode="Fixed"
+                        visibleRowCount="8"
+                            enableColumnReordering="true"
+                            showColumnVisibilityMenu="true"
+                            selectionMode="{worklistView>/tableSelectionMode}"
+                            rowSelectionChange=".onSelectionChange"
+                            rowsUpdated=".onUpdateFinished"
+                            rows="{ path: 'pedidos>/' }"
+                        >
                         <t:toolbar>
                             <OverflowToolbar>
                                 <Title
@@ -450,7 +455,8 @@
 
                                         
                         </t:columns>
-                    </t:Table>
+                        </t:Table>
+                    </Panel>
                 </content>
             </IconTabBar>
         </semantic:content>

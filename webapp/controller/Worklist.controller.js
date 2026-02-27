@@ -459,6 +459,9 @@ oTable.setBusy(false);
             // Flag mismatch to keep existing highlight/styling
             var bMismatch = (nDifCant !== 0) || (nDifImp !== 0);
 
+			// Normalización (trim) + clasificación SUNAT (corrección obligatoria)
+			var sStatusSunat = (o.StatusEnvSunat == null) ? "" : String(o.StatusEnvSunat).trim();
+
             return {
                 // Visible in UI
                 pedido: o.Ebeln || "",
@@ -478,7 +481,8 @@ oTable.setBusy(false);
                 precioEnt: nImpEnt,
                 statusFacturacion: (o.StatusFact == null) ? "" : String(o.StatusFact).trim(),
                 factura: (o.Factura == null) ? "" : String(o.Factura).trim(),
-                statusEnvioSunat: (o.StatusEnvSunat == null) ? "" : String(o.StatusEnvSunat).trim(),
+				statusEnvioSunat: sStatusSunat,
+				estadoSunatGrupo: this._getEstadoSunatGrupo(sStatusSunat),
                 referencia: (o.Referencia == null) ? "" : String(o.Referencia).trim(),
                 statusMiro: (o.StatusMiro == null) ? "" : String(o.StatusMiro).trim(),
                 docMiro: (o.DocMiro == null) ? "" : String(o.DocMiro),
@@ -1009,6 +1013,19 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 			return s === "AP - APROBADO SUNAT";
 		},
 
+		_getEstadoSunatGrupo: function (sStatusSunat) {
+			// ✅ Corrección obligatoria (solo para mostrar/clasificar):
+			// - Si Status SUNAT = "AP - Aprobado SUNAT" (sin importar mayúsculas/minúsculas) -> "enviado"
+			// - Si Status SUNAT tiene cualquier otro valor (no vacío) -> "reprocesado"
+			// - Si viene vacío/null -> "" (no clasifica)
+			var s = (sStatusSunat == null) ? "" : String(sStatusSunat);
+			s = s.trim();
+			if (!s) {
+				return "";
+			}
+			return this._isSunatApproved(s) ? "enviado" : "reprocesado";
+		},
+
 		_makeSunatApprovedFilter: function (bApproved) {
 			// Importante: usar comparación EXACTA (sin fnTest) para evitar que un mismo registro
 			// aparezca en Enviado y Reprocesado.
@@ -1440,7 +1457,7 @@ oViewModel.setProperty("/reproBtnVisible", false);
 // Enviado SUNAT: Status SUNAT = AP y aún sin Doc MIRO
 aFilters = [
     new Filter("docMiro", FilterOperator.EQ, ""),
-    this._makeSunatApprovedFilter(true)
+	new Filter("estadoSunatGrupo", FilterOperator.EQ, "enviado")
 ];
 
             } else if (sKey === "reprocesadoSUNAT") {
@@ -1458,8 +1475,7 @@ oViewModel.setProperty("/reproBtnVisible", true);
 // Reprocesado: Status SUNAT != AP (y no vacío), aún sin Doc MIRO
 aFilters = [
     new Filter("docMiro", FilterOperator.EQ, ""),
-    new Filter("statusEnvioSunat", FilterOperator.NE, ""),
-    this._makeSunatApprovedFilter(false)
+	new Filter("estadoSunatGrupo", FilterOperator.EQ, "reprocesado")
 ];
             } else if (sKey === "registradoMIRO") {
                 oViewModel.setProperty("/colStatusFacturacionVisible", true);
@@ -1888,7 +1904,9 @@ _refreshAfterProcess: function (sTipoProc, oData) {
         } else if (sTipoProc === "MIRO") {
             sNextKey = "registradoMIRO";
 		} else if (sTipoProc === "ENSN" || sTipoProc === "ERSN") {
-            // Si el backend ya devuelve AP - Aprobado SUNAT -> Enviado; si no, Reprocesado
+			// Corrección obligatoria (solo clasificación/visualización):
+			// - AP - Aprobado SUNAT -> Enviado
+			// - Cualquier otro estado SUNAT (no vacío) -> Reprocesado
             var sAny = "";
             try {
                 var aUpd = (oData && oData.EntregaListSet) ? (oData.EntregaListSet.results || oData.EntregaListSet || []) : [];
@@ -1897,7 +1915,15 @@ _refreshAfterProcess: function (sTipoProc, oData) {
                 }
             } catch (e1) { /* ignore */ }
 
-            sNextKey = this._isSunatApproved(sAny) ? "enviadoSUNAT" : "reprocesadoSUNAT";
+			var sGrupoSunat = this._getEstadoSunatGrupo(sAny);
+			if (sGrupoSunat === "enviado") {
+				sNextKey = "enviadoSUNAT";
+			} else if (sGrupoSunat === "reprocesado") {
+				sNextKey = "reprocesadoSUNAT";
+			} else {
+				// Si no vino estado SUNAT (vacío), mantenemos la etapa anterior
+				sNextKey = "facturadoSAP";
+			}
         }
 
         // Cambiar a la pestaña destino
@@ -2028,7 +2054,10 @@ _applyEntregaResponse: function (oData, sTipoProc) {
         if (u.Factura != null) r.factura = String(u.Factura).trim();
         if (u.StatusFact != null) r.statusFacturacion = String(u.StatusFact).trim();
         if (u.Referencia != null) r.referencia = String(u.Referencia).trim();
-        if (u.StatusEnvSunat != null) r.statusEnvioSunat = String(u.StatusEnvSunat).trim();
+		if (u.StatusEnvSunat != null) {
+			r.statusEnvioSunat = String(u.StatusEnvSunat).trim();
+			r.estadoSunatGrupo = this._getEstadoSunatGrupo(r.statusEnvioSunat);
+		}
         if (u.DocMiro != null) r.docMiro = String(u.DocMiro);
         if (u.StatusMiro != null) r.statusMiro = String(u.StatusMiro).trim();
         if (u.MsjUltEvento != null) r.mensajeUltimoEvento = String(u.MsjUltEvento).trim();
