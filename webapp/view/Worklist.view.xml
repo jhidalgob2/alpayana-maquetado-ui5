@@ -62,9 +62,12 @@
                 </items>
 
                 <content>
-                    <Panel
-                        id="panelGridTable"
+                    <ScrollContainer
+                        id="scrollGridTable"
                         width="100%"
+                        height="100%"
+                        horizontal="true"
+                        vertical="true"
                         class="sapUiNoContentPadding"
                     >
                         <t:Table
@@ -333,7 +336,21 @@
                                     <ObjectNumber number="{pedidos>difImporteCalc}" />
                                 </t:template>
                             </t:Column>
-
+                     <t:Column
+                                id="colEstadoTol"
+                                width="12rem"
+                                    hAlign="Center"
+    vAlign="Middle"
+                                sortProperty="estadoTol"
+                                filterProperty="estadoTol"
+                                filterOperator="EQ"
+                            >
+                                <Text text="Estado Tolerancia" />
+                                <t:template>
+                                    <ObjectStatus icon="sap-icon://circle-task-2" state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}" 
+                                        class="estadoTolStatus" />
+                                </t:template>
+                            </t:Column>
                             <t:Column
                                 id="colStatusFacturacion"
                                 width="10rem"
@@ -414,21 +431,7 @@
                                     <Text text="{pedidos>docMiro}" />
                                 </t:template>
                             </t:Column>
-                            <t:Column
-                                id="colEstadoTol"
-                                width="12rem"
-                                    hAlign="Center"
-    vAlign="Middle"
-                                sortProperty="estadoTol"
-                                filterProperty="estadoTol"
-                                filterOperator="EQ"
-                            >
-                                <Text text="Estado Tolerancia" />
-                                <t:template>
-                                    <ObjectStatus icon="sap-icon://circle-task-2" state="{path:'pedidos>estadoTol', formatter:'.formatter.estadoTolState'}" 
-                                        class="estadoTolStatus" />
-                                </t:template>
-                            </t:Column>
+       
                             <t:Column
                                 id="colMensajeUltimoEvento"
                                 width="18rem"
@@ -456,7 +459,7 @@
                                         
                         </t:columns>
                         </t:Table>
-                    </Panel>
+                    </ScrollContainer>
                 </content>
             </IconTabBar>
         </semantic:content>

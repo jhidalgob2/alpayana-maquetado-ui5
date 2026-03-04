@@ -128,7 +128,7 @@ sap.ui.define([
 			this._setupStatusFactColumnMenu();
 			this._setupStatusSunatColumnMenu();
 			this._setupStatusMiroColumnMenu();
-
+            this._setupFacturaRangeColumnMenu();
             // Keep count/scroll in sync when column filters change
             oTable.attachFilter(this._onTableColumnFilter, this);
 
@@ -302,6 +302,123 @@ success: function (oData) {
                 return { key: sKey, text: sDisplay };
             }).filter(Boolean);
         },
+        _setupFacturaRangeColumnMenu: function () {
+            var oCol = this.byId("colFactura");
+            var oTable = this.byId("table");
+            if (!oCol || !oTable || !oCol.setMenu) return;
+
+            // Si ya tiene menu custom, no duplicar
+            if (oCol.getMenu && oCol.getMenu()) return;
+
+            var that = this;
+            var oMenu = new Menu(this.getView().createId("facturaMenu"));
+
+            // Acciones estándar
+            oMenu.addItem(new MenuItem({
+                text: "Sort Ascending",
+                icon: "sap-icon://sort-ascending",
+                select: function () {
+                    try { oTable.sort(oCol, tableLibrary.SortOrder.Ascending); } catch (e) { /* ignore */ }
+                }
+            }));
+            oMenu.addItem(new MenuItem({
+                text: "Sort Descending",
+                icon: "sap-icon://sort-descending",
+                select: function () {
+                    try { oTable.sort(oCol, tableLibrary.SortOrder.Descending); } catch (e) { /* ignore */ }
+                }
+            }));
+
+            // --- Rango ---
+            oMenu.addItem(new MenuItem({
+                text: "Filtro por rango",
+                startsSection: true,
+                enabled: false
+            }));
+
+            var oFrom = new MenuTextFieldItem({ label: "Desde", value: "" });
+            var oTo = new MenuTextFieldItem({ label: "Hasta", value: "" });
+
+            // ✅ MenuTextFieldItem (sap.ui.unified) solo hace setValue(...) al presionar Enter (por diseño).
+            // Para evitar depender de Enter, sincronizamos la property "value" en cada input/change del <input>.
+            var fnLiveSync = function (oItem) {
+                try {
+                    oItem.addEventDelegate({
+                        onAfterRendering: function () {
+                            var $tf = oItem.$("tf");
+                            if ($tf && $tf.length) {
+                                // evita duplicados si se re-renderiza
+                                $tf.off("input._rng change._rng").on("input._rng change._rng", function () {
+                                    try { oItem.setProperty("value", this.value, true); } catch (e1) { /* ignore */ }
+                                });
+                            }
+                        }
+                    });
+                } catch (e0) { /* ignore */ }
+            };
+            fnLiveSync(oFrom);
+            fnLiveSync(oTo);
+
+            oMenu.addItem(oFrom);
+            oMenu.addItem(oTo);
+
+            oMenu.addItem(new MenuItem({
+                text: "Aplicar rango",
+                icon: "sap-icon://filter",
+                select: function () {
+                    // ya viene actualizado sin necesidad de Enter gracias a fnLiveSync
+                    var sFrom = (oFrom.getValue() || "").trim();
+                    var sTo = (oTo.getValue() || "").trim();
+
+                    if (!sFrom || !sTo) {
+                        MessageToast.show("Ingrese Desde y Hasta.");
+                        return;
+                    }
+
+                    // swap si vienen al revés (numérico si aplica)
+                    var bNum = /^\d+$/.test(sFrom) && /^\d+$/.test(sTo);
+                    if (bNum) {
+                        if (Number(sFrom) > Number(sTo)) { var t = sFrom; sFrom = sTo; sTo = t; }
+                    } else {
+                        if (sFrom > sTo) { var t2 = sFrom; sFrom = sTo; sTo = t2; }
+                    }
+
+                    // visual en header
+                    oCol.setFilterValue(sFrom + "..." + sTo);
+
+                    // filtro real
+                    that._applyFacturaRangeBT(oCol, sFrom, sTo);
+                }
+            }));
+
+            oMenu.addItem(new MenuItem({
+                text: "Quitar filtro",
+                select: function () {
+                    oCol.setFilterValue("");
+                    that._applyFacturaRangeBT(oCol, null, null);
+                }
+            }));
+
+            oMenu.addItem(new MenuItem({
+                text: "Limpiar rango",
+                icon: "sap-icon://delete",
+                select: function () {
+                    try { oFrom.setValue(""); } catch (e1) { /* ignore */ }
+                    try { oTo.setValue(""); } catch (e2) { /* ignore */ }
+                    oCol.setFilterValue("");
+                    that._applyFacturaRangeBT(oCol, null, null);
+                }
+            }));
+
+            // Columns submenu
+            oMenu.addItem(new MenuItem({
+                text: "Columns",
+                startsSection: true,
+                submenu: this._buildColumnsSubMenu(oTable)
+            }));
+
+            oCol.setMenu(oMenu);
+        },
 
         _pickFirstExisting: function (o, aCandidates) {
             if (!o || !aCandidates) return "";
@@ -314,6 +431,51 @@ success: function (oData) {
             return "";
         },
 
+        _applyFacturaRangeBT: function (oRangeCol, sFrom, sTo) {
+  var oTable = this.byId("table");
+  var oBinding = oTable && oTable.getBinding("rows");
+  if (!oBinding) return;
+
+  var bHasRange = (sFrom != null && sTo != null && String(sFrom).trim() !== "" && String(sTo).trim() !== "");
+
+  // si son números puros, filtra numérico; si no, filtra string
+  var vFrom = sFrom, vTo = sTo;
+  if (bHasRange) {
+    var sf = String(sFrom).trim();
+    var st = String(sTo).trim();
+    var bNum = /^\d+$/.test(sf) && /^\d+$/.test(st);
+    vFrom = bNum ? Number(sf) : sf;
+    vTo   = bNum ? Number(st) : st;
+  }
+
+  var aControlFilters = [];
+
+  (oTable.getColumns() || []).forEach(function (c) {
+    var sProp = c.getFilterProperty && c.getFilterProperty();
+    if (!sProp) return;
+
+    // Factura: aplicar BT (si hay rango)
+    if (c === oRangeCol) {
+      if (bHasRange) {
+        aControlFilters.push(new Filter(sProp, FilterOperator.BT, vFrom, vTo));
+      }
+      return;
+    }
+
+    // Otras columnas: respetar filtro estándar actual
+    var sVal = c.getFilterValue && c.getFilterValue();
+    if (!sVal) return;
+
+    var sOp = (c.getFilterOperator && c.getFilterOperator()) || FilterOperator.Contains;
+    aControlFilters.push(new Filter(sProp, sOp, sVal));
+  });
+
+  // ✅ aplica filtros de columnas (Control)
+  oBinding.filter(aControlFilters, FilterType.Control);
+
+  if (oTable.setFirstVisibleRow) oTable.setFirstVisibleRow(0);
+  this._updateWorklistTableTitleFromBinding();
+},
         _guessKey: function (o) {
             if (!o) return "";
             // try to pick the first primitive string/number property (ignoring metadata)
@@ -491,6 +653,8 @@ oTable.setBusy(false);
                 // Extra fields from the entity (not necessarily visible yet)
                 docSal643: (o.DocSal643 == null) ? "" : String(o.DocSal643),
                 docEnt101: (o.DocEnt101 == null) ? "" : String(o.DocEnt101),
+                ejercicio101: (o.Ejercicio101 == null) ? "" : String(o.Ejercicio101),
+posicion101: (o.Posicion101 == null) ? "" : String(o.Posicion101),
 ejercicio643: (o.Ejercicio643 == null) ? "" : String(o.Ejercicio643),
 posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 				// EstadoTol puede venir como 1/0/-1. Si viene vacío, lo dejamos vacío (formatter lo interpreta como 🟢).
@@ -1170,17 +1334,58 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
             this.byId("table").clearSelection();
         },
 
+        
         onExport: function () {
-			var aAll = this.getModel("pedidos").getData() || [];
-			if (!Array.isArray(aAll) || aAll.length === 0) {
+			var oTable = this.byId("table");
+			var aAllModel = this.getModel("pedidos").getData() || [];
+			if (!Array.isArray(aAllModel) || aAllModel.length === 0) {
                 MessageToast.show("No hay datos para exportar.");
                 return;
             }
 
-			// Nuevo comportamiento: si hay filas seleccionadas, exportar solo esas; si no, exportar todo
+			// Si hay filas seleccionadas, exportar solo esas.
+			// Si NO hay selección, exportar lo que el usuario ve (incluye filtros de la tabla + búsqueda + pestañas).
 			var aSelected = this._getSelectedRowsData();
-			var aData = (Array.isArray(aSelected) && aSelected.length) ? aSelected : aAll;
+			var aData = [];
 
+			if (Array.isArray(aSelected) && aSelected.length) {
+				aData = aSelected;
+			} else {
+				var oBinding = (oTable && oTable.getBinding) ? oTable.getBinding("rows") : null;
+
+				// Con JSONModel, el binding ya tiene aplicados los filtros (Control/Application).
+				if (oBinding && oBinding.getContexts && oBinding.getLength) {
+					var iLen = oBinding.getLength();
+					var aCtx = oBinding.getContexts(0, iLen) || [];
+					aData = aCtx.map(function (c) { return (c && c.getObject) ? c.getObject() : null; }).filter(Boolean);
+				} else {
+					// Fallback: exporta todo el modelo si no hay binding disponible
+					aData = aAllModel;
+				}
+			}
+
+			if (!Array.isArray(aData) || aData.length === 0) {
+                MessageToast.show("No hay datos para exportar.");
+                return;
+            }
+// aData = (seleccionadas o todo)
+var aDataExport = (aData || []).map(function (r) {
+    // copia simple para no tocar el modelo original
+    var o = {};
+    for (var k in r) { if (Object.prototype.hasOwnProperty.call(r, k)) o[k] = r[k]; }
+
+    // estadoTol: 1 = Sin diferencia, 0 = Dentro, -1 = Fuera. Vacío => tratar como 1
+    var vTol = (r && r.estadoTol != null) ? r.estadoTol : "";
+    var nTol = (vTol === "" || vTol == null) ? 1 : Number(vTol);
+
+    var sDesc = "";
+    if (nTol === 1) sDesc = "Sin diferencia";
+    else if (nTol === 0) sDesc = "Dentro de tolerancia";
+    else if (nTol === -1) sDesc = "Fuera de tolerancia";
+
+    o.estadoTolDesc = sDesc;
+    return o;
+});
             var EdmType = exportLibrary.EdmType;
 
             var aColumns = [
@@ -1189,6 +1394,9 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
                 { label: "Material", property: "material", type: EdmType.String },
                 { label: "Descripción", property: "descripcion", type: EdmType.String },
                 { label: "Tipo Retención", property: "tipoRetencion", type: EdmType.String },
+                { label: "DocSal643",       property: "docSal643",     type: EdmType.String },
+                { label: "DocEnt101",       property: "docEnt101",     type: EdmType.String },
+
                 { label: "Entrega", property: "entrega", type: EdmType.String },
                 { label: "Centro Vend", property: "centroSum", type: EdmType.String },
                 { label: "Centro Comp", property: "centroRecep", type: EdmType.String },
@@ -1197,7 +1405,8 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
                 { label: "Dif. Cantidad", property: "difCantidadCalc", type: EdmType.Number },
                 { label: "Importe Sal", property: "precioSal", type: EdmType.Number },
                 { label: "Importe Ent", property: "precioEnt", type: EdmType.Number },
-                                { label: "Status Fact.", property: "statusFacturacion", type: EdmType.String },
+                { label: "Status Tolerancia",  property: "estadoTolDesc",  type: EdmType.String },
+                { label: "Status Fact.", property: "statusFacturacion", type: EdmType.String },
                 { label: "Factura", property: "factura", type: EdmType.String },
                 { label: "Status SUNAT", property: "statusEnvioSunat", type: EdmType.String },
                 { label: "Referencia", property: "referencia", type: EdmType.String },
@@ -1208,7 +1417,7 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
 
 			var oSheet = new Spreadsheet({
                 workbook: { columns: aColumns },
-                dataSource: aData,
+                dataSource: aDataExport,            
                 fileName: "Monitor_Intercompany.xlsx"
             });
 
@@ -1992,6 +2201,9 @@ _buildEntregaPayload: function (sTipoProc, sPeriodProc, aRows) {
             DocSal643: r.docSal643 || "",
             Ejercicio643: r.ejercicio643 || "",
             Posicion643: r.posicion643 || "",
+            DocEnt101: r.docEnt101 || "",
+            Ejercicio101: r.ejercicio101 || "",
+            Posicion101: r.posicion101 || "",
             Entrega: r.entrega || "",
             CentroComp: r.centroRecep || sCentroCompFirst,
             Factura: r.factura || "",
