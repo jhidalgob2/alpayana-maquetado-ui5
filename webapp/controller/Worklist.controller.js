@@ -128,7 +128,7 @@ sap.ui.define([
 			this._setupStatusFactColumnMenu();
 			this._setupStatusSunatColumnMenu();
 			this._setupStatusMiroColumnMenu();
-            this._setupFacturaRangeColumnMenu();
+            // this._setupFacturaRangeColumnMenu();
             // Keep count/scroll in sync when column filters change
             oTable.attachFilter(this._onTableColumnFilter, this);
 
@@ -653,6 +653,7 @@ oTable.setBusy(false);
                 // Extra fields from the entity (not necessarily visible yet)
                 docSal643: (o.DocSal643 == null) ? "" : String(o.DocSal643),
                 docEnt101: (o.DocEnt101 == null) ? "" : String(o.DocEnt101),
+                IdTraEnt: (o.IdtraEnt == null) ? "" : String(o.IdtraEnt).trim(),
                 ejercicio101: (o.Ejercicio101 == null) ? "" : String(o.Ejercicio101),
 posicion101: (o.Posicion101 == null) ? "" : String(o.Posicion101),
 ejercicio643: (o.Ejercicio643 == null) ? "" : String(o.Ejercicio643),
@@ -1389,14 +1390,14 @@ var aDataExport = (aData || []).map(function (r) {
             var EdmType = exportLibrary.EdmType;
 
             var aColumns = [
+                { label: "Id de Proceso", property: "IdTraEnt", type: EdmType.String },  
                 { label: "Pedido", property: "pedido", type: EdmType.String },
                 { label: "Pos", property: "pos", type: EdmType.String },
                 { label: "Material", property: "material", type: EdmType.String },
                 { label: "Descripción", property: "descripcion", type: EdmType.String },
                 { label: "Tipo Retención", property: "tipoRetencion", type: EdmType.String },
                 { label: "DocSal643",       property: "docSal643",     type: EdmType.String },
-                { label: "DocEnt101",       property: "docEnt101",     type: EdmType.String },
-
+                { label: "DocEnt101",       property: "docEnt101",     type: EdmType.String },    
                 { label: "Entrega", property: "entrega", type: EdmType.String },
                 { label: "Centro Vend", property: "centroSum", type: EdmType.String },
                 { label: "Centro Comp", property: "centroRecep", type: EdmType.String },
@@ -2135,25 +2136,18 @@ _refreshAfterProcess: function (sTipoProc, oData) {
 			}
         }
 
-        // Cambiar a la pestaña destino
         var oTab = this.byId("iconTabBar");
-        if (oTab && oTab.setSelectedKey) {
-            oTab.setSelectedKey(sNextKey);
-        }
+        var sKeepKey = (oTab && oTab.getSelectedKey) ? oTab.getSelectedKey() : "inicial";
 
-        // Re-consultar al backend con los mismos filtros seleccionados
         this.onFilterBarSearch();
-
-        // Re-aplicar el filtro de la pestaña (client-side) tras recargar
         if (typeof this.onQuickFilter === "function") {
             this.onQuickFilter({
                 getParameter: function (sName) {
-                    return (sName === "selectedKey") ? sNextKey : null;
+                    return (sName === "selectedKey") ? sKeepKey : null;
                 }
             });
         }
     } catch (e) {
-        // fallback: al menos recargar
         try { this.onFilterBarSearch(); } catch (e2) { /* ignore */ }
     }
 },
@@ -2334,7 +2328,8 @@ _pushProcesoMessages: function (aResp, mListByIdItem, sTipoProc) {
                 }
 
                 var sPrefix = (sTipoProc ? (sTipoProc + " - ") : "");
-                var sTitle = sPrefix + (sCtx ? (sCtx + ": ") : "") + (sMensaje || (sMsgType === MessageType.Success ? "Proceso OK" : "Resultado"));
+                // var sTitle = sPrefix + (sCtx ? (sCtx + ": ") : "") + (sMensaje || (sMsgType === MessageType.Success ? "Proceso OK" : "Resultado"));
+                var sTitle =  (sMensaje || (sMsgType === MessageType.Success ? "Proceso OK" : "Resultado"));
 
                 // Evita duplicados
                 if (mSeen[sTitle]) { return; }
@@ -2342,7 +2337,7 @@ _pushProcesoMessages: function (aResp, mListByIdItem, sTipoProc) {
 
                 aMsgs.push(new Message({
                     message: sTitle,
-                    description: sMensaje || sTitle,
+                    description: (sMensaje && sMensaje !== sTitle) ? sMensaje : "",                    
                     type: sMsgType,
                     processor: oProc
                 }));
@@ -2376,7 +2371,6 @@ _pushProcesoMessages: function (aResp, mListByIdItem, sTipoProc) {
                     items: {
                         path: "message>/",
                         template: new MessageItem({
-                            description: "{message>description}",
                             type: "{message>type}",
                             title: "{message>message}"
                         })

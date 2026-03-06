@@ -1,5 +1,6 @@
 <mvc:View
     controllerName="com.nttdata.cuentas.controller.Worklist"
+    xmlns:rm="sap.ui.table.rowmodes"
     xmlns="sap.m"
     xmlns:mvc="sap.ui.core.mvc"
     xmlns:semantic="sap.f.semantic"
@@ -70,21 +71,22 @@
                         vertical="true"
                         class="sapUiNoContentPadding"
                     >
-                        <t:Table
-                            id="table"
-                            busyIndicatorDelay="{worklistView>/tableBusyDelay}"
-                            width="95%"
-                            class="sapUiSizeCompact myTable95"
-                        visibleRowCountMode="Fixed"
-                        visibleRowCount="8"
-                            enableColumnReordering="true"
-                            showColumnVisibilityMenu="true"
-                            selectionMode="{worklistView>/tableSelectionMode}"
-                            rowSelectionChange=".onSelectionChange"
-                            rowsUpdated=".onUpdateFinished"
-                            rows="{ path: 'pedidos>/' }"
-                        >
-                        <t:toolbar>
+           <t:Table
+    id="table"
+    busyIndicatorDelay="{worklistView>/tableBusyDelay}"
+    width="95%"
+    class="sapUiSizeCompact myTable100"
+    enableColumnReordering="true"
+    selectionMode="{worklistView>/tableSelectionMode}"
+    rowSelectionChange=".onSelectionChange"
+    rowsUpdated=".onUpdateFinished"
+    rows="{ path: 'pedidos>/' }"
+>
+           <t:rowMode>
+    <rm:Fixed rowCount="10" rowContentHeight="66" />
+</t:rowMode>
+
+                <t:toolbar>
                             <OverflowToolbar>
                                 <Title
                                     id="tableHeader"
@@ -155,7 +157,17 @@
 
                         <t:columns>
              
-
+                   <t:Column
+                            id="colIdTraEnt"
+                            width="12rem"
+                            sortProperty="IdTraEnt"                           
+                            filterProperty="IdTraEnt"
+                        >
+                            <Text text="Id de Proceso" />
+                            <t:template>
+                                <Text text="{pedidos>IdTraEnt}" />
+                            </t:template>
+                        </t:Column>
                             <t:Column
                                 id="colPedido"
                                 width="8rem"
