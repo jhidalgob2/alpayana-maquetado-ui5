@@ -1209,6 +1209,9 @@ posicion643: (o.Posicion643 == null) ? "" : String(o.Posicion643),
             var oView = this.getView();
             var oViewModel = this.getModel("worklistView");
 
+            // (IR) Siempre limpiar filtros de tabla antes de traer datos
+            this._resetGridTableFiltersAll();
+
             var sCentroVend = oViewModel.getProperty("/selectedCentroSum");
             var vCentroComp = oViewModel.getProperty("/selectedCentroRecep");
             var aCentroComp = Array.isArray(vCentroComp) ? vCentroComp : (vCentroComp ? [vCentroComp] : []);
@@ -1413,7 +1416,8 @@ var aDataExport = (aData || []).map(function (r) {
                 { label: "Referencia", property: "referencia", type: EdmType.String },
                 { label: "Status MIRO", property: "statusMiro", type: EdmType.String },
                 { label: "Doc MIRO", property: "docMiro", type: EdmType.String },
-                { label: "Mensaje Últ. Evento", property: "mensajeUltimoEvento", type: EdmType.String }
+                { label: "Mensaje Últ. Evento", property: "mensajeUltimoEvento", type: EdmType.String },
+                { label: "Estado de Registro", property: "estadoReg", type: EdmType.String },
             ];
 
 			var oSheet = new Spreadsheet({
@@ -1607,12 +1611,68 @@ var aDataExport = (aData || []).map(function (r) {
             this._updateWorklistTableTitleFromBinding();
         },
 
+        /**
+         * Limpia SOLO filtros de la tabla (filtros de columna + búsqueda de tabla),
+         * manteniendo el filtro de pestaña (quick filter) intacto.
+         *
+         * - Filtros de columnas (menú/cabecera) => FilterType.Control
+         * - Búsqueda de tabla => this._aTableSearchState (FilterType.Application)
+         *
+         * @param {object} [mOptions]
+         * @param {boolean} [mOptions.skipReapply] Si true, NO reaplica filtros Application aquí
+         *                                      (útil cuando el caller va a setear _aQuickFilterState luego).
+         */
+        _resetGridTableFiltersAll: function (mOptions) {
+            var oTable = this.byId("table");
+            if (!oTable) return;
+
+            // 1) Limpiar filtros de columnas (Control)
+            var aCols = (oTable.getColumns && oTable.getColumns()) ? oTable.getColumns() : [];
+            aCols.forEach(function (oCol) {
+                try {
+                    if (oCol && oCol.setFilterValue) {
+                        oCol.setFilterValue("");
+                    }
+                    if (oCol && oCol.setFiltered) {
+                        oCol.setFiltered(false);
+                    }
+                } catch (e) { /* ignore */ }
+            });
+
+            var oBinding = oTable.getBinding("rows");
+            if (oBinding) {
+                try {
+                    oBinding.filter([], FilterType.Control);
+                } catch (e2) { /* ignore */ }
+            }
+
+            // 2) Limpiar búsqueda de tabla (Application)
+            this._aTableSearchState = [];
+
+            // Best-effort: limpiar el texto del SearchField si existe en la vista
+            var oSearch = this.byId("searchField") || this.byId("searchField1") || this.byId("tableSearchField") || null;
+            if (oSearch && oSearch.setValue) {
+                try { oSearch.setValue(""); } catch (e3) { /* ignore */ }
+            }
+
+            // 3) Reaplicar filtros Application sin búsqueda (salvo que el caller lo haga)
+            if (!(mOptions && mOptions.skipReapply)) {
+                this._applyCombinedApplicationFilters(true);
+            }
+        },
+
+
 
                 onQuickFilter: function (oEvent) {
             var oBinding = this._oTable.getBinding("rows"),
                 sKey = oEvent.getParameter("selectedKey"),
                 aFilters = [],
                 oViewModel = this.getModel("worklistView");
+
+            // (Cambio de pestaña) Limpiar filtros de tabla de la vista anterior (columnas + búsqueda)
+            // skipReapply=true porque inmediatamente después se setea _aQuickFilterState y se reaplica Application.
+            this._resetGridTableFiltersAll({ skipReapply: true });
+
 
             // Column visibility based on tab
             if (sKey === "inicial") {
@@ -1760,7 +1820,24 @@ _getEligibilityFlagsForTab: function (sKey, aSelectedRows) {
     var canFact = false, canSunat = false, canMiro = false, canRepro = false;
 
     if (sKey === "inicial") {
-        canFact = fnAny(aSelectedRows, this._isEligibleFacturar.bind(this));
+
+        var mEntregasBloqueadas = this._getFacturarBlockedEntregasMap();
+
+        canFact = fnAny(aSelectedRows, function (row) {
+            if (!this._isEligibleFacturar(row)) {
+                return false;
+            }
+
+            var sEntrega = (row && row.entrega != null) ? String(row.entrega).trim() : "";
+            // Si no hay entrega, se mantiene el comportamiento anterior (solo validación por fila)
+            if (!sEntrega) {
+                return true;
+            }
+
+            // Si la entrega está bloqueada, ningún registro de esa entrega habilita Facturar
+            return !mEntregasBloqueadas[sEntrega];
+        }.bind(this));
+
         canSunat = fnAny(aSelectedRows, this._isEligibleSunat.bind(this));
         canMiro = fnAny(aSelectedRows, this._isEligibleMiro.bind(this));
     } else if (sKey === "facturadoSAP") {
@@ -1770,9 +1847,31 @@ _getEligibilityFlagsForTab: function (sKey, aSelectedRows) {
     } else if (sKey === "reprocesadoSUNAT") {
         canRepro = fnAny(aSelectedRows, this._isEligibleRepro.bind(this));
     }
+
     return { canFacturar: canFact, canSunat: canSunat, canMiro: canMiro, canRepro: canRepro };
 },
 
+_getFacturarBlockedEntregasMap: function () {
+    var oPedidosModel = this.getModel("pedidos");
+    var aAll = (oPedidosModel && oPedidosModel.getData) ? (oPedidosModel.getData() || []) : [];
+    var mBlocked = Object.create(null);
+
+    (aAll || []).forEach(function (r) {
+        if (!r) return;
+
+        var sEntrega = (r.entrega != null) ? String(r.entrega).trim() : "";
+        if (!sEntrega) return;            // sin entrega => no aplica bloqueo por grupo
+        if (mBlocked[sEntrega]) return;   // ya marcada como bloqueada
+
+        // Evaluación fila-a-fila existente
+        var bOk = this._isEligibleFacturar(r);
+        if (!bOk) {
+            mBlocked[sEntrega] = true;
+        }
+    }.bind(this));
+
+    return mBlocked;
+},
 _isEligibleFacturar: function (row) {
     // Nuevo código de tolerancia:
     //  1 = Sin diferencia, 0 = Dentro de tolerancia, -1 = Fuera de tolerancia
@@ -1829,10 +1928,45 @@ _splitValidInvalid: function (sTipoProc, aRows) {
     if (sTipoProc === "MIRO") fnElig = this._isEligibleMiro.bind(this);
     if (sTipoProc === "ERSN") fnElig = this._isEligibleRepro.bind(this);
 
+    // ✅ NUEVO: bloqueo por entrega solo para FACT
+    var mEntregasBloqueadas = null;
+    if (sTipoProc === "FACT") {
+        mEntregasBloqueadas = this._getFacturarBlockedEntregasMap();
+    }
+
     (aRows || []).forEach(function (r) {
         if (!r) return;
-        var ok = fnElig ? fnElig(r) : true;
-        if (ok) {
+
+        var okFila = fnElig ? fnElig(r) : true;
+
+        if (sTipoProc === "FACT") {
+            var sEntrega = (r.entrega != null) ? String(r.entrega).trim() : "";
+            var bEntregaBloq = !!(sEntrega && mEntregasBloqueadas && mEntregasBloqueadas[sEntrega]);
+
+            // ✅ Solo es válido si la fila es OK y la entrega NO está bloqueada
+            if (okFila && !bEntregaBloq) {
+                aValid.push(r);
+                return;
+            }
+
+            // ❌ Caso inválido:
+            //  - Si la fila NO cumple validación -> motivo normal
+            //  - Si la fila cumple pero la entrega está bloqueada -> motivo por entrega
+            var sMotivo = okFila
+                ? ("Entrega " + (sEntrega || "(sin entrega)") + " bloqueada: existe al menos 1 registro de esta entrega que NO cumple validación para FACTURAR.")
+                : this._getInvalidReason(sTipoProc, r);
+
+            aInvalid.push({
+                pedido: r.pedido,
+                pos: r.pos,
+                material: r.material,
+                descripcion: r.descripcion,
+                motivo: sMotivo
+            });
+            return;
+        }
+
+        if (okFila) {
             aValid.push(r);
         } else {
             aInvalid.push({
